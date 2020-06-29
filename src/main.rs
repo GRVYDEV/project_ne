@@ -1,8 +1,8 @@
-use hecs::{Component, Entity, World};
+use hecs::{ Entity, World};
 use std::collections::HashMap;
 use std::time::Duration;
 use tetra::graphics::animation::Animation;
-use tetra::graphics::{self, Camera, Color, DrawParams, Drawable, Rectangle, Texture};
+use tetra::graphics::{self, Camera, Color, DrawParams, Rectangle, Texture};
 use tetra::input::{self, Key};
 use tetra::math::Vec2;
 use tetra::{Context, ContextBuilder, Event, State};
@@ -58,10 +58,6 @@ pub enum AnimationKey {
     PlayerRight,
 }
 struct EntityAnimation {
-    up: AnimationKey,
-    down: AnimationKey,
-    left: AnimationKey,
-    right: AnimationKey,
     direction: Direction,
 }
 
@@ -88,10 +84,6 @@ fn new_player(ctx: &mut Context, world: &mut World) -> tetra::Result<Entity> {
     Ok(world.spawn((
         Player,
         EntityAnimation {
-            up: AnimationKey::PlayerUp,
-            down: AnimationKey::PlayerDown,
-            left: AnimationKey::PlayerLeft,
-            right: AnimationKey::PlayerRight,
             direction: Direction::Down,
         },
         PlayerCamera(camera),
@@ -104,37 +96,50 @@ fn player_update(
     world: &mut World,
     anim_map: &mut HashMap<AnimationKey, Animation>,
 ) {
-    for (id, (pos, camera, anim, _player)) in
-        &mut world.query::<(&mut Vec2<f32>, &mut PlayerCamera, &mut EntityAnimation, &Player)>()
-    {
-        
+    for (_id, (pos, camera, anim, _player)) in &mut world.query::<(
+        &mut Vec2<f32>,
+        &mut PlayerCamera,
+        &mut EntityAnimation,
+        &Player,
+    )>() {
         if input::is_key_down(ctx, Key::W) {
             pos.y -= PLAYER_SPEED;
             camera.0.position.y -= PLAYER_SPEED;
             anim.direction = Direction::Up;
-            anim_map.get_mut(&AnimationKey::PlayerUp).unwrap().advance(ctx);
+            anim_map
+                .get_mut(&AnimationKey::PlayerUp)
+                .unwrap()
+                .advance(ctx);
         }
         if input::is_key_down(ctx, Key::S) {
             pos.y += PLAYER_SPEED;
             camera.0.position.y += PLAYER_SPEED;
             anim.direction = Direction::Down;
-            anim_map.get_mut(&AnimationKey::PlayerDown).unwrap().advance(ctx);
+            anim_map
+                .get_mut(&AnimationKey::PlayerDown)
+                .unwrap()
+                .advance(ctx);
         }
         if input::is_key_down(ctx, Key::D) {
             pos.x += PLAYER_SPEED;
             camera.0.position.x += PLAYER_SPEED;
             anim.direction = Direction::Right;
-            anim_map.get_mut(&AnimationKey::PlayerRight).unwrap().advance(ctx);
+            anim_map
+                .get_mut(&AnimationKey::PlayerRight)
+                .unwrap()
+                .advance(ctx);
         }
         if input::is_key_down(ctx, Key::A) {
             pos.x -= PLAYER_SPEED;
             camera.0.position.x -= PLAYER_SPEED;
             anim.direction = Direction::Left;
-            anim_map.get_mut(&AnimationKey::PlayerLeft).unwrap().advance(ctx);
+            anim_map
+                .get_mut(&AnimationKey::PlayerLeft)
+                .unwrap()
+                .advance(ctx);
         }
         camera.0.update();
     }
-    
 }
 
 impl GameState {
@@ -265,7 +270,7 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (id, camera) in self.world.query::<&PlayerCamera>().iter().take(1) {
+        for (_id, camera) in self.world.query::<&PlayerCamera>().iter().take(1) {
             graphics::set_transform_matrix(ctx, camera.0.as_matrix());
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
@@ -274,7 +279,7 @@ impl State for GameState {
 
         draw_layer(bg_layer.clone(), self, ctx);
 
-        for (id, (pos, camera, anim, _player)) in
+        for (_id, (pos, _camera, anim, _player)) in
             &mut self
                 .world
                 .query::<(&Vec2<f32>, &PlayerCamera, &EntityAnimation, &Player)>()
@@ -311,13 +316,12 @@ impl State for GameState {
         Ok(())
     }
 
-    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+    fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
         if let Event::Resized { width, height } = event {
-            for (id, camera) in self.world.query::<&mut PlayerCamera>().iter().take(1) {
-                camera.0.set_viewport_size(width as f32, height as f32 );
+            for (_id, camera) in self.world.query::<&mut PlayerCamera>().iter().take(1) {
+                camera.0.set_viewport_size(width as f32, height as f32);
                 camera.0.update();
             }
-            
         }
         Ok(())
     }
