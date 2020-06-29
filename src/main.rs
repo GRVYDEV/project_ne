@@ -262,17 +262,20 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
+        graphics::set_transform_matrix(ctx, self.player.camera.as_matrix());
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
 
         draw_layer(bg_layer.clone(), self, ctx);
-        graphics::set_transform_matrix(ctx, self.player.camera.as_matrix());
+        
         graphics::draw(ctx, &self.player, DrawParams::default());
 
         for x in layers {
             draw_layer(x, self, ctx);
         }
+
+        
         Ok(())
     }
 
