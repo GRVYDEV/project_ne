@@ -1,29 +1,24 @@
-#![allow(dead_code, unused_imports)]
+
 
 use std::collections::HashMap;
 use std::time::Duration;
-extern crate tiled;
-use std::fs;
-use std::io::prelude::*;
-use std::io::Read;
-use std::path::Path;
 use tetra::graphics::animation::Animation;
 use tetra::graphics::{self, Camera, Color, DrawParams, Drawable, Rectangle, Texture};
 use tetra::input::{self, Key};
 use tetra::math::Vec2;
-use tetra::{Context, ContextBuilder, State};
+use tetra::{Context, ContextBuilder, Event, State};
 use tiled::parse;
 use tiled::Layer;
 
-const WINDOW_HEIGHT: f32 = 1600.0;
-const WINDOW_WIDTH: f32 = 900.0;
+const WINDOW_WIDTH: f32 = 1600.0;
+const WINDOW_HEIGHT: f32 = 900.0;
 
 const CHAR_HEIGHT: f32 = 36.0;
 const CHAR_WIDTH: f32 = 25.0;
 
 const PLAYER_SPEED: f32 = 3.0;
 
-const ANIM_SPEED: f64 = 0.3;
+const ANIM_SPEED: f64 = 0.2;
 
 const TILESETS: &[(&str, &[u8])] = &[
     (
@@ -41,8 +36,6 @@ struct GameState {
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<Layer>,
     texture_map: HashMap<String, Texture>,
-    bg: Texture,
-    fg: Texture,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -77,8 +70,8 @@ struct Player {
 impl Player {
     fn new(ctx: &mut Context, texture: &Texture) -> tetra::Result<Player> {
         let position = Vec2::new(
-            (WINDOW_HEIGHT / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
-            (WINDOW_WIDTH / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
+            (WINDOW_WIDTH / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
+            (WINDOW_HEIGHT / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
         );
 
         let up = Animation::new(
@@ -189,7 +182,7 @@ impl GameState {
         //println!("{:?}", file_to_texture.get(&"terrain").unwrap());
 
         let texture = Texture::from_file_data(ctx, include_bytes!("../resources/chara5.png"))?;
-        let tiled_data = tiled::parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
+        let tiled_data = parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
 
         let tilesets = tiled_data.tilesets;
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
@@ -222,21 +215,16 @@ impl GameState {
         }
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
 
-        let bg = file_to_texture.get("outdoors").unwrap().clone();
-        let fg = Texture::from_file_data(ctx, include_bytes!("../resources/map/map2trees.png"))?;
         Ok(GameState {
             player: Player::new(ctx, &texture)?,
             sprite_map: tile_sprites,
             layers: tiled_data.layers,
             texture_map: file_to_texture,
-            bg,
-            fg,
         })
     }
 }
 
 fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
-
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         for (x, &tile) in row.iter().enumerate() {
             if tile.gid == 0 {
@@ -279,10 +267,10 @@ impl State for GameState {
         let bg_layer: tiled::Layer = layers.remove(0);
 
         draw_layer(bg_layer.clone(), self, ctx);
-        
+        graphics::set_transform_matrix(ctx, self.player.camera.as_matrix());
         graphics::draw(ctx, &self.player, DrawParams::default());
-        
-        for x in layers{
+
+        for x in layers {
             draw_layer(x, self, ctx);
         }
         Ok(())
@@ -293,13 +281,24 @@ impl State for GameState {
 
         Ok(())
     }
+
+    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+        if let Event::Resized { width, height } = event {
+            self.player
+                .camera
+                .set_viewport_size(width as f32, height as f32);
+            self.player.camera.update();
+        }
+        Ok(())
+    }
 }
 
 fn main() -> tetra::Result {
     // #[derive(Debug)]
     // println!("{:#?}", tiled_data);
     //fs::write("foo.txt", format!("{:#?}", tiled_data)).unwrap();
-    ContextBuilder::new("Neon", WINDOW_HEIGHT as i32, WINDOW_WIDTH as i32)
+    ContextBuilder::new("Neon", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
+        .resizable(true)
         .quit_on_escape(true)
         .build()?
         .run(GameState::new)

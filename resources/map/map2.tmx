@@ -25,7 +25,7 @@
  </layer>
  <layer id="3" name="Tile Layer 3" width="50" height="50">
   <data encoding="base64" compression="gzip">
-   H4sIAAAAAAAAE+3UQQ5AQAyF4cYxcSacCWfCUtcWTcNIO/xf0nVfJ3kjAtzTNiKdTt9EJ3lm0PyjzlT5HbPmX3TWyu/YNP+uc1R+x1WGvlgZvPky9MXK4M2XoS9WBm++DH2xMmTI96bIXpfcHdlrz27vrZG99uz2vnNkbzy7M/yfJXz9fwIAAAAAAAAAAPizE2D4YcQQJwAA
+   H4sIAAAAAAAAE+2U0U0CQRRFJ7u6IPajsn7Yh1IBCnYCVqAgaCFgBYCuUoj46eETktlM3MGdSe5Jzu97901yxxgh/sZ1YswNdpK6k1RjQP4hPkR+x4z8c3yL/I5v8m/wJ/I79gmhL2UZXPOF0JeyDK75QuhLWQbXfCH0pSxDCPkOie9eJ8xJ8QiPMcOGZbbP3b57fcacc7zANuZ4aZntstv1Vt+97jLnFu+wh328t8x22e36zr5788icJxzhGJ9xYpntsruu/3PBviWu8B0/sKiQoa7/KUvpNTbxBFt4mv5vBh/kZJ7gFF/wFa8ivGNLQe5P/MJ1pDcIIYQQQgghhBBCCCGEEGKXX0SgCYkQJwAA
   </data>
  </layer>
 </map>
