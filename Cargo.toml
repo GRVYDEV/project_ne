@@ -7,6 +7,7 @@ description = "A dive into Rust game dev"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hecs = "0.2.12"
 tiled = "0.9.2"
 sdl2 = { version = "0.34.0", features = ["use-pkgconfig"] }
 lazy_static = "1.4.0"

@@ -1,5 +1,4 @@
-
-
+use hecs::{Component, Entity, World};
 use std::collections::HashMap;
 use std::time::Duration;
 use tetra::graphics::animation::Animation;
@@ -32,10 +31,12 @@ const TILESETS: &[(&str, &[u8])] = &[
 ];
 
 struct GameState {
-    player: Player,
+    player: Entity,
+    world: World,
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<Layer>,
     texture_map: HashMap<String, Texture>,
+    player_anim_map: HashMap<AnimationKey, Animation>,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -49,16 +50,24 @@ pub enum Direction {
     Left,
     Right,
 }
-
-struct Player {
-    up: Animation,
-    down: Animation,
-    left: Animation,
-    right: Animation,
-    position: Vec2<f32>,
-    direction: Direction,
-    camera: Camera,
+#[derive(PartialEq, Eq, Hash)]
+pub enum AnimationKey {
+    PlayerUp,
+    PlayerDown,
+    PlayerLeft,
+    PlayerRight,
 }
+struct EntityAnimation {
+    up: AnimationKey,
+    down: AnimationKey,
+    left: AnimationKey,
+    right: AnimationKey,
+    direction: Direction,
+}
+
+struct PlayerCamera(Camera);
+
+struct Player;
 
 // x width for char = 75
 // y height for char = 144
@@ -67,121 +76,113 @@ struct Player {
 // right = x: 0.0, y: 36.0
 // left = x: 0.0, y: 72.0
 // up = x: 0.0, y: 108.
-impl Player {
-    fn new(ctx: &mut Context, texture: &Texture) -> tetra::Result<Player> {
-        let position = Vec2::new(
-            (WINDOW_WIDTH / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
-            (WINDOW_HEIGHT / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
-        );
 
-        let up = Animation::new(
-            texture.clone(),
-            Rectangle::row(0.0, 108.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let down = Animation::new(
-            texture.clone(),
-            Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let left = Animation::new(
-            texture.clone(),
-            Rectangle::row(0.0, 36.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let right = Animation::new(
-            texture.clone(),
-            Rectangle::row(0.0, 72.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
+fn new_player(ctx: &mut Context, world: &mut World) -> tetra::Result<Entity> {
+    let position = Vec2::new(
+        (WINDOW_WIDTH / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
+        (WINDOW_HEIGHT / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
+    );
+    let mut camera = Camera::with_window_size(ctx);
+    camera.position = position;
 
-        let mut camera = Camera::with_window_size(ctx);
-        camera.position = position;
-
-        Ok(Player {
-            up,
-            down,
-            left,
-            right,
-            position,
+    Ok(world.spawn((
+        Player,
+        EntityAnimation {
+            up: AnimationKey::PlayerUp,
+            down: AnimationKey::PlayerDown,
+            left: AnimationKey::PlayerLeft,
+            right: AnimationKey::PlayerRight,
             direction: Direction::Down,
-            camera,
-        })
-    }
-
-    fn update(&mut self, ctx: &mut Context) {
-        if input::is_key_down(ctx, Key::W) {
-            self.position.y -= PLAYER_SPEED;
-            self.camera.position.y -= PLAYER_SPEED;
-            self.direction = Direction::Up;
-            self.up.advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::S) {
-            self.position.y += PLAYER_SPEED;
-            self.camera.position.y += PLAYER_SPEED;
-            self.direction = Direction::Down;
-            self.down.advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::D) {
-            self.position.x += PLAYER_SPEED;
-            self.camera.position.x += PLAYER_SPEED;
-            self.direction = Direction::Right;
-            self.right.advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::A) {
-            self.position.x -= PLAYER_SPEED;
-            self.camera.position.x -= PLAYER_SPEED;
-            self.direction = Direction::Left;
-            self.left.advance(ctx);
-        }
-
-        self.camera.update();
-    }
+        },
+        PlayerCamera(camera),
+        position,
+    )))
 }
 
-impl Drawable for Player {
-    fn draw<P>(&self, ctx: &mut Context, _params: P)
-    where
-        P: Into<DrawParams>,
+fn player_update(
+    ctx: &mut Context,
+    world: &mut World,
+    anim_map: &mut HashMap<AnimationKey, Animation>,
+) {
+    for (id, (pos, camera, anim, _player)) in
+        &mut world.query::<(&mut Vec2<f32>, &mut PlayerCamera, &mut EntityAnimation, &Player)>()
     {
-        let anim = match self.direction {
-            Direction::Up => &self.up,
-            Direction::Down => &self.down,
-            Direction::Left => &self.left,
-            Direction::Right => &self.right,
-        };
-        graphics::set_transform_matrix(ctx, self.camera.as_matrix());
-        graphics::draw(
-            ctx,
-            anim,
-            DrawParams::new()
-                .position(self.position)
-                .origin(Vec2::new(0.0, 0.0))
-                .scale(Vec2::new(2.0, 2.0)),
-        )
+        
+        if input::is_key_down(ctx, Key::W) {
+            pos.y -= PLAYER_SPEED;
+            camera.0.position.y -= PLAYER_SPEED;
+            anim.direction = Direction::Up;
+            anim_map.get_mut(&AnimationKey::PlayerUp).unwrap().advance(ctx);
+        }
+        if input::is_key_down(ctx, Key::S) {
+            pos.y += PLAYER_SPEED;
+            camera.0.position.y += PLAYER_SPEED;
+            anim.direction = Direction::Down;
+            anim_map.get_mut(&AnimationKey::PlayerDown).unwrap().advance(ctx);
+        }
+        if input::is_key_down(ctx, Key::D) {
+            pos.x += PLAYER_SPEED;
+            camera.0.position.x += PLAYER_SPEED;
+            anim.direction = Direction::Right;
+            anim_map.get_mut(&AnimationKey::PlayerRight).unwrap().advance(ctx);
+        }
+        if input::is_key_down(ctx, Key::A) {
+            pos.x -= PLAYER_SPEED;
+            camera.0.position.x -= PLAYER_SPEED;
+            anim.direction = Direction::Left;
+            anim_map.get_mut(&AnimationKey::PlayerLeft).unwrap().advance(ctx);
+        }
+        camera.0.update();
     }
+    
 }
 
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
+        let mut world = World::new();
         let mut file_to_texture = HashMap::new();
         for (k, v) in TILESETS {
             file_to_texture
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
+        let player_sheet = Texture::from_file_data(ctx, include_bytes!("../resources/chara5.png"))?;
+        let up = Animation::new(
+            player_sheet.clone(),
+            Rectangle::row(0.0, 108.0, CHAR_WIDTH, CHAR_HEIGHT)
+                .take(3)
+                .collect(),
+            Duration::from_secs_f64(ANIM_SPEED),
+        );
+        let down = Animation::new(
+            player_sheet.clone(),
+            Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
+                .take(3)
+                .collect(),
+            Duration::from_secs_f64(ANIM_SPEED),
+        );
+        let left = Animation::new(
+            player_sheet.clone(),
+            Rectangle::row(0.0, 36.0, CHAR_WIDTH, CHAR_HEIGHT)
+                .take(3)
+                .collect(),
+            Duration::from_secs_f64(ANIM_SPEED),
+        );
+        let right = Animation::new(
+            player_sheet.clone(),
+            Rectangle::row(0.0, 72.0, CHAR_WIDTH, CHAR_HEIGHT)
+                .take(3)
+                .collect(),
+            Duration::from_secs_f64(ANIM_SPEED),
+        );
 
+        let mut anims = HashMap::new();
+        anims.insert(AnimationKey::PlayerUp, up);
+        anims.insert(AnimationKey::PlayerDown, down);
+        anims.insert(AnimationKey::PlayerLeft, left);
+        anims.insert(AnimationKey::PlayerRight, right);
         //println!("{:?}", file_to_texture.get(&"terrain").unwrap());
 
-        let texture = Texture::from_file_data(ctx, include_bytes!("../resources/chara5.png"))?;
         let tiled_data = parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
 
         let tilesets = tiled_data.tilesets;
@@ -216,7 +217,9 @@ impl GameState {
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
 
         Ok(GameState {
-            player: Player::new(ctx, &texture)?,
+            player: new_player(ctx, &mut world)?,
+            world,
+            player_anim_map: anims,
             sprite_map: tile_sprites,
             layers: tiled_data.layers,
             texture_map: file_to_texture,
@@ -262,35 +265,59 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        graphics::set_transform_matrix(ctx, self.player.camera.as_matrix());
+        for (id, camera) in self.world.query::<&PlayerCamera>().iter().take(1) {
+            graphics::set_transform_matrix(ctx, camera.0.as_matrix());
+        }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
 
         draw_layer(bg_layer.clone(), self, ctx);
-        
-        graphics::draw(ctx, &self.player, DrawParams::default());
+
+        for (id, (pos, camera, anim, _player)) in
+            &mut self
+                .world
+                .query::<(&Vec2<f32>, &PlayerCamera, &EntityAnimation, &Player)>()
+        {
+            let key = match anim.direction {
+                Direction::Up => AnimationKey::PlayerUp,
+                Direction::Down => AnimationKey::PlayerDown,
+                Direction::Left => AnimationKey::PlayerLeft,
+                Direction::Right => AnimationKey::PlayerRight,
+            };
+            let animation = self.player_anim_map.get(&key).unwrap();
+            graphics::draw(
+                ctx,
+                animation,
+                DrawParams::new()
+                    .position(pos.clone())
+                    .origin(Vec2::new(18.0, 12.5))
+                    .scale(Vec2::new(2.0, 2.0)),
+            );
+        }
+
+        //graphics::draw(ctx, &self.player, DrawParams::default());
 
         for x in layers {
             draw_layer(x, self, ctx);
         }
 
-        
         Ok(())
     }
 
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        self.player.update(ctx);
+        player_update(ctx, &mut self.world, &mut self.player_anim_map);
 
         Ok(())
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
         if let Event::Resized { width, height } = event {
-            self.player
-                .camera
-                .set_viewport_size(width as f32, height as f32);
-            self.player.camera.update();
+            for (id, camera) in self.world.query::<&mut PlayerCamera>().iter().take(1) {
+                camera.0.set_viewport_size(width as f32, height as f32 );
+                camera.0.update();
+            }
+            
         }
         Ok(())
     }
