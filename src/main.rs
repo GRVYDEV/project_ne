@@ -6,19 +6,19 @@ use tetra::graphics::animation::Animation;
 use tetra::graphics::{self, Camera, Color, DrawParams, Drawable, Rectangle, Texture};
 use tetra::input::{self, Key};
 use tetra::math::Vec2;
-use tetra::{Context, ContextBuilder, State, Event};
+use tetra::{Context, ContextBuilder, Event, State};
 use tiled::parse;
 use tiled::Layer;
 
-const WINDOW_HEIGHT: f32 = 1600.0;
-const WINDOW_WIDTH: f32 = 900.0;
+const WINDOW_WIDTH: f32 = 1600.0;
+const WINDOW_HEIGHT: f32 = 900.0;
 
 const CHAR_HEIGHT: f32 = 36.0;
 const CHAR_WIDTH: f32 = 25.0;
 
 const PLAYER_SPEED: f32 = 3.0;
 
-const ANIM_SPEED: f64 = 0.3;
+const ANIM_SPEED: f64 = 0.2;
 
 const TILESETS: &[(&str, &[u8])] = &[
     (
@@ -70,8 +70,8 @@ struct Player {
 impl Player {
     fn new(ctx: &mut Context, texture: &Texture) -> tetra::Result<Player> {
         let position = Vec2::new(
-            (WINDOW_HEIGHT / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
-            (WINDOW_WIDTH / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
+            (WINDOW_WIDTH / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
+            (WINDOW_HEIGHT / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
         );
 
         let up = Animation::new(
@@ -118,7 +118,6 @@ impl Player {
     }
 
     fn update(&mut self, ctx: &mut Context) {
-        self.camera.update();
         if input::is_key_down(ctx, Key::W) {
             self.position.y -= PLAYER_SPEED;
             self.camera.position.y -= PLAYER_SPEED;
@@ -216,19 +215,16 @@ impl GameState {
         }
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
 
-        
         Ok(GameState {
             player: Player::new(ctx, &texture)?,
             sprite_map: tile_sprites,
             layers: tiled_data.layers,
             texture_map: file_to_texture,
-            
         })
     }
 }
 
 fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
-
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         for (x, &tile) in row.iter().enumerate() {
             if tile.gid == 0 {
@@ -271,10 +267,10 @@ impl State for GameState {
         let bg_layer: tiled::Layer = layers.remove(0);
 
         draw_layer(bg_layer.clone(), self, ctx);
-        
+        graphics::set_transform_matrix(ctx, self.player.camera.as_matrix());
         graphics::draw(ctx, &self.player, DrawParams::default());
-        
-        for x in layers{
+
+        for x in layers {
             draw_layer(x, self, ctx);
         }
         Ok(())
@@ -287,9 +283,11 @@ impl State for GameState {
     }
 
     fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
-        if let Event::Resized{width, height} = event {
-            self.player.camera.set_viewport_size(width as f32, height as f32);
-            self.player.update(ctx);
+        if let Event::Resized { width, height } = event {
+            self.player
+                .camera
+                .set_viewport_size(width as f32, height as f32);
+            self.player.camera.update();
         }
         Ok(())
     }
@@ -299,7 +297,7 @@ fn main() -> tetra::Result {
     // #[derive(Debug)]
     // println!("{:#?}", tiled_data);
     //fs::write("foo.txt", format!("{:#?}", tiled_data)).unwrap();
-    ContextBuilder::new("Neon", WINDOW_HEIGHT as i32, WINDOW_WIDTH as i32)
+    ContextBuilder::new("Neon", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
         .resizable(true)
         .quit_on_escape(true)
         .build()?
