@@ -1,17 +1,12 @@
-#![allow(dead_code, unused_imports)]
+
 
 use std::collections::HashMap;
 use std::time::Duration;
-extern crate tiled;
-use std::fs;
-use std::io::prelude::*;
-use std::io::Read;
-use std::path::Path;
 use tetra::graphics::animation::Animation;
 use tetra::graphics::{self, Camera, Color, DrawParams, Drawable, Rectangle, Texture};
 use tetra::input::{self, Key};
 use tetra::math::Vec2;
-use tetra::{Context, ContextBuilder, State};
+use tetra::{Context, ContextBuilder, State, Event};
 use tiled::parse;
 use tiled::Layer;
 
@@ -41,8 +36,6 @@ struct GameState {
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<Layer>,
     texture_map: HashMap<String, Texture>,
-    bg: Texture,
-    fg: Texture,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -125,6 +118,7 @@ impl Player {
     }
 
     fn update(&mut self, ctx: &mut Context) {
+        self.camera.update();
         if input::is_key_down(ctx, Key::W) {
             self.position.y -= PLAYER_SPEED;
             self.camera.position.y -= PLAYER_SPEED;
@@ -189,7 +183,7 @@ impl GameState {
         //println!("{:?}", file_to_texture.get(&"terrain").unwrap());
 
         let texture = Texture::from_file_data(ctx, include_bytes!("../resources/chara5.png"))?;
-        let tiled_data = tiled::parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
+        let tiled_data = parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
 
         let tilesets = tiled_data.tilesets;
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
@@ -222,15 +216,13 @@ impl GameState {
         }
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
 
-        let bg = file_to_texture.get("outdoors").unwrap().clone();
-        let fg = Texture::from_file_data(ctx, include_bytes!("../resources/map/map2trees.png"))?;
+        
         Ok(GameState {
             player: Player::new(ctx, &texture)?,
             sprite_map: tile_sprites,
             layers: tiled_data.layers,
             texture_map: file_to_texture,
-            bg,
-            fg,
+            
         })
     }
 }
@@ -293,6 +285,14 @@ impl State for GameState {
 
         Ok(())
     }
+
+    fn event(&mut self, ctx: &mut Context, event: Event) -> tetra::Result {
+        if let Event::Resized{width, height} = event {
+            self.player.camera.set_viewport_size(width as f32, height as f32);
+            self.player.update(ctx);
+        }
+        Ok(())
+    }
 }
 
 fn main() -> tetra::Result {
@@ -300,6 +300,7 @@ fn main() -> tetra::Result {
     // println!("{:#?}", tiled_data);
     //fs::write("foo.txt", format!("{:#?}", tiled_data)).unwrap();
     ContextBuilder::new("Neon", WINDOW_HEIGHT as i32, WINDOW_WIDTH as i32)
+        .resizable(true)
         .quit_on_escape(true)
         .build()?
         .run(GameState::new)
