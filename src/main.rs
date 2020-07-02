@@ -150,14 +150,34 @@ fn handle_contact_event(
             {
                 if co1.data().collision_type == CollisionType::Player {
                     let normal = contact.contact.normal.into_inner().data;
-                    println!("Normal {:?}", normal);
-                    let normals = [normal[0] as i32, normal[1] as i32];
-                    match normals {
-                        [-1, 0] => can_move.left = false,
-                        [1, 0] => can_move.right = false,
-                        [-0, -1] => can_move.up = false,
-                        [0, 1] => can_move.down = false,
-                        _ => panic!("Uh Oh Start"),
+                    //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
+                    let normals = [normal[0] as f32, normal[1] as f32];
+                    let player_contact = [
+                        contact.contact.world1.coords.data[0],
+                        contact.contact.world1.coords.data[1],
+                    ];
+                    println!("Normal {:?}", normals);
+                    let player_pos = [
+                        co1.position().translation.vector.data[0],
+                        co1.position().translation.vector.data[1],
+                    ];
+                    let local_frame = [
+                        player_contact[0] / player_pos[0],
+                        player_contact[1] / player_pos[1],
+                    ];
+                    println!(
+                        "Player Contact: {:?} Player Pos: {:?}",
+                        player_contact, player_pos
+                    );
+                    println!("Local Frame {:?}", local_frame);
+                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
+                        can_move.left = false
+                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
+                        can_move.right = false;
+                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
+                        can_move.up = false;
+                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
+                        can_move.down = false;
                     }
                 // println!(
                 //     "Handling event...{} Can i move? {}",
@@ -166,14 +186,34 @@ fn handle_contact_event(
                 // );
                 } else if co2.data().collision_type == CollisionType::Player {
                     let normal = (-contact.contact.normal).into_inner().data;
-                    println!("Normal {:?}", normal);
-                    let normals = [normal[0] as i32, normal[1] as i32];
-                    match normals {
-                        [-1, 0] => can_move.left = false,
-                        [1, 0] => can_move.right = false,
-                        [-0, -1] => can_move.up = false,
-                        [0, 1] => can_move.down = false,
-                        _ => panic!("Uh Oh Start"),
+                    //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
+                    let normals = [normal[0] as f32, normal[1] as f32];
+                    println!("Normal {:?}", normals);
+                    let player_contact = [
+                        contact.contact.world2.coords.data[0],
+                        contact.contact.world2.coords.data[1],
+                    ];
+                    let player_pos = [
+                        co2.position().translation.vector.data[0],
+                        co2.position().translation.vector.data[1],
+                    ];
+                    let local_frame = [
+                        player_contact[0] / player_pos[0],
+                        player_contact[1] / player_pos[1],
+                    ];
+                    println!(
+                        "Player Contact: {:?} Player Pos: {:?}",
+                        player_contact, player_pos
+                    );
+                    println!("Local Frame {:?}", local_frame);
+                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
+                        can_move.left = false
+                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
+                        can_move.right = false;
+                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
+                        can_move.up = false;
+                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
+                        can_move.down = false;
                     }
                     // println!(
                     //     "Handling event...{} Can i move? {}",
@@ -195,14 +235,16 @@ fn handle_contact_event(
             {
                 if co1.data().collision_type == CollisionType::Player {
                     let normal = contact.contact.normal.into_inner().data;
-                    println!("Stop Normal {:?}", normal);
-                    let normals = [normal[0] as i32, normal[1] as i32];
-                    match normals {
-                        [-1, 0] => can_move.left = true,
-                        [1, 0] => can_move.right = true,
-                        [-0, -1] => can_move.up = true,
-                        [0, 1] => can_move.down = true,
-                        _ => panic!("Uh Oh"),
+                    //println!("Stop Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
+                    let normals = [normal[0] as f32, normal[1] as f32];
+                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
+                        can_move.left = true
+                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
+                        can_move.right = true;
+                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
+                        can_move.up = true;
+                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
+                        can_move.down = true;
                     }
                 // println!(
                 //     "Handling event...{} Can i move? {}",
@@ -211,15 +253,18 @@ fn handle_contact_event(
                 // );
                 } else if co2.data().collision_type == CollisionType::Player {
                     let normal = (-contact.contact.normal).into_inner().data;
-                    println!("Stop Normal {:?}", normal);
-                    let normals = [normal[0] as i32, normal[1] as i32];
-                    match normals {
-                        [-1, 0] => can_move.left = true,
-                        [1, 0] => can_move.right = true,
-                        [-0, -1] => can_move.up = true,
-                        [0, 1] => can_move.down = true,
-                        _ => panic!("Uh Oh"),
+                    //println!("Stop Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
+                    let normals = [normal[0] as f32, normal[1] as f32];
+                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
+                        can_move.left = true
+                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
+                        can_move.right = true;
+                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
+                        can_move.up = true;
+                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
+                        can_move.down = true;
                     }
+
                     // println!(
                     //     "Handling event...{} Can i move? {}",
                     //     co1.data().name,
@@ -227,14 +272,22 @@ fn handle_contact_event(
                     // );
                 }
             }
-        }else{
+        } else {
             for (_id, (_player, can_move)) in
                 ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
             {
-                if !can_move.up{ can_move.up = true}
-                if !can_move.down{ can_move.down = true}
-                if !can_move.left{ can_move.left = true}
-                if !can_move.right{ can_move.right = true}
+                if !can_move.up {
+                    can_move.up = true
+                }
+                if !can_move.down {
+                    can_move.down = true
+                }
+                if !can_move.left {
+                    can_move.left = true
+                }
+                if !can_move.right {
+                    can_move.right = true
+                }
             }
         }
     }
@@ -304,10 +357,8 @@ fn create_physics_world(
                         }
                     } //ConvexPolygon::try_new(points).unwrap()
                     let shape = ShapeHandle::new(Cuboid::new(Vector2::new(16.0, 16.0)));
-                    let shape_pos = Isometry2::new(
-                        Vector2::new(x as f32 * 32.0, y as f32 * 32.0),
-                        nalgebra::zero(),
-                    );
+                    let shape_pos =
+                        Isometry2::new(Vector2::new(x as f32 * 32.0, y as f32 * 32.0), rotation);
                     physics_world.add(
                         shape_pos,
                         shape,
