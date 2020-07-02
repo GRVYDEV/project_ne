@@ -140,51 +140,53 @@ fn handle_contact_event(
     ecs_world: &mut World,
 ) {
     if let &ContactEvent::Started(collider1, collider2) = event {
-        let pair = world.contact_pair(collider1, collider2, true).unwrap();
-        let contact = pair.3.deepest_contact().unwrap();
-        let co1 = world.collision_object(collider1).unwrap();
-        let co2 = world.collision_object(collider2).unwrap();
-        for (_id, (_player, can_move)) in
-            ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
-        {
-            if co1.data().collision_type == CollisionType::Player {
-                let normal = contact.contact.normal.into_inner().data;
-                println!("Normal {:?}", normal);
-                let normals = [normal[0] as i32, normal[1] as i32];
-                match normals {
-                    [-1, 0] => can_move.left = false,
-                    [1, 0] => can_move.right = false,
-                    [-0, -1] => can_move.up = false,
-                    [0, 1] => can_move.down = false,
-                    _ => panic!("Uh Oh Start"),
-                }
-            // println!(
-            //     "Handling event...{} Can i move? {}",
-            //     co2.data().name,
-            //     format!("{:#?}", can_move)
-            // );
-            } else if co2.data().collision_type == CollisionType::Player {
-                let normal = (-contact.contact.normal).into_inner().data;
-                println!("Normal {:?}", normal);
-                let normals = [normal[0] as i32, normal[1] as i32];
-                match normals {
-                    [-1, 0] => can_move.left = false,
-                    [1, 0] => can_move.right = false,
-                    [-0, -1] => can_move.up = false,
-                    [0, 1] => can_move.down = false,
-                    _ => panic!("Uh Oh Start"),
-                }
+        if world.contact_pair(collider1, collider2, true).is_some() {
+            let pair = world.contact_pair(collider1, collider2, false).unwrap();
+            let contact = pair.3.deepest_contact().unwrap();
+            let co1 = world.collision_object(collider1).unwrap();
+            let co2 = world.collision_object(collider2).unwrap();
+            for (_id, (_player, can_move)) in
+                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
+            {
+                if co1.data().collision_type == CollisionType::Player {
+                    let normal = contact.contact.normal.into_inner().data;
+                    println!("Normal {:?}", normal);
+                    let normals = [normal[0] as i32, normal[1] as i32];
+                    match normals {
+                        [-1, 0] => can_move.left = false,
+                        [1, 0] => can_move.right = false,
+                        [-0, -1] => can_move.up = false,
+                        [0, 1] => can_move.down = false,
+                        _ => panic!("Uh Oh Start"),
+                    }
                 // println!(
                 //     "Handling event...{} Can i move? {}",
-                //     co1.data().name,
+                //     co2.data().name,
                 //     format!("{:#?}", can_move)
                 // );
+                } else if co2.data().collision_type == CollisionType::Player {
+                    let normal = (-contact.contact.normal).into_inner().data;
+                    println!("Normal {:?}", normal);
+                    let normals = [normal[0] as i32, normal[1] as i32];
+                    match normals {
+                        [-1, 0] => can_move.left = false,
+                        [1, 0] => can_move.right = false,
+                        [-0, -1] => can_move.up = false,
+                        [0, 1] => can_move.down = false,
+                        _ => panic!("Uh Oh Start"),
+                    }
+                    // println!(
+                    //     "Handling event...{} Can i move? {}",
+                    //     co1.data().name,
+                    //     format!("{:#?}", can_move)
+                    // );
+                }
             }
         }
     }
     if let &ContactEvent::Stopped(collider1, collider2) = event {
         if world.contact_pair(collider1, collider2, true).is_some() {
-            let pair = world.contact_pair(collider1, collider2, true).unwrap();
+            let pair = world.contact_pair(collider1, collider2, false).unwrap();
             let contact = pair.3.deepest_contact().unwrap();
             let co1 = world.collision_object(collider1).unwrap();
             let co2 = world.collision_object(collider2).unwrap();
@@ -225,14 +227,14 @@ fn handle_contact_event(
                     // );
                 }
             }
-        } else {
+        }else{
             for (_id, (_player, can_move)) in
                 ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
             {
-                can_move.left = true;
-                can_move.right = true;
-                can_move.up = true;
-                can_move.down= true;
+                if !can_move.up{ can_move.up = true}
+                if !can_move.down{ can_move.down = true}
+                if !can_move.left{ can_move.left = true}
+                if !can_move.right{ can_move.right = true}
             }
         }
     }
@@ -694,7 +696,8 @@ impl State for GameState {
             &mut self.player_anim_map,
             (physics_world, player_handle),
         );
-        physics_world.update();
+        physics_world.perform_broad_phase();
+        physics_world.perform_narrow_phase();
 
         Ok(())
     }
