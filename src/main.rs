@@ -1,13 +1,13 @@
 use hecs::{Entity, World};
+use nalgebra::base::{Unit, Vector2};
+use nalgebra::geometry::{Isometry2, Point2, Translation2};
 use ncollide2d::pipeline::{
     object, CollisionGroups, CollisionWorld, ContactEvent, GeometricQueryType, ProximityEvent,
 };
 use ncollide2d::query::Proximity;
-
-use nalgebra::base::{Unit, Vector2};
-use nalgebra::geometry::Isometry2;
-use ncollide2d::shape::{Ball, Plane, ShapeHandle};
+use ncollide2d::shape::{Ball, ConvexPolygon, Cuboid, Plane, ShapeHandle};
 use std::collections::HashMap;
+use std::fs;
 use std::time::Duration;
 use tetra::graphics::animation::Animation;
 use tetra::graphics::{self, Camera, Color, DrawParams, Rectangle, Texture};
@@ -16,6 +16,7 @@ use tetra::math::Vec2;
 use tetra::{Context, ContextBuilder, Event, State};
 use tiled::parse;
 use tiled::Layer;
+use tiled::ObjectShape;
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -64,6 +65,7 @@ struct Sprite {
     rect: Rectangle,
     pos: Vec2<f32>,
     texture: String,
+    collision_objects: Option<Vec<tiled::Object>>,
 }
 pub enum Direction {
     Up,
@@ -90,6 +92,10 @@ struct Player;
 pub enum CollisionType {
     Player,
     World,
+    Top,
+    Bottom,
+    Left,
+    Right,
 }
 
 #[derive(Clone)]
@@ -133,32 +139,100 @@ fn handle_contact_event(
     event: &ContactEvent<object::CollisionObjectSlabHandle>,
     ecs_world: &mut World,
 ) {
-    
     if let &ContactEvent::Started(collider1, collider2) = event {
+        let pair = world.contact_pair(collider1, collider2, true).unwrap();
+        let contact = pair.3.deepest_contact().unwrap();
         let co1 = world.collision_object(collider1).unwrap();
         let co2 = world.collision_object(collider2).unwrap();
-        
         for (_id, (_player, can_move)) in
             ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
         {
             if co1.data().collision_type == CollisionType::Player {
-                match co2.data().name {
-                    "left" => can_move.left = false,
-                    "right" => can_move.right = false,
-                    "up" => can_move.up = false,
-                    "down" => can_move.down = false,
-                    _ => panic!("Uh Oh"),
+                let normal = contact.contact.normal.into_inner().data;
+                println!("Normal {:?}", normal);
+                let normals = [normal[0] as i32, normal[1] as i32];
+                match normals {
+                    [-1, 0] => can_move.left = false,
+                    [1, 0] => can_move.right = false,
+                    [-0, -1] => can_move.up = false,
+                    [0, 1] => can_move.down = false,
+                    _ => panic!("Uh Oh Start"),
                 }
-                println!("Handling event...{} Can i move? {}", co2.data().name, format!("{:#?}", can_move));
+            // println!(
+            //     "Handling event...{} Can i move? {}",
+            //     co2.data().name,
+            //     format!("{:#?}", can_move)
+            // );
             } else if co2.data().collision_type == CollisionType::Player {
-                match co1.data().name {
-                    "left" => can_move.left = false,
-                    "right" => can_move.right = false,
-                    "up" => can_move.up = false,
-                    "down" => can_move.down = false,
-                    _ => panic!("Uh Oh"),
+                let normal = (-contact.contact.normal).into_inner().data;
+                println!("Normal {:?}", normal);
+                let normals = [normal[0] as i32, normal[1] as i32];
+                match normals {
+                    [-1, 0] => can_move.left = false,
+                    [1, 0] => can_move.right = false,
+                    [-0, -1] => can_move.up = false,
+                    [0, 1] => can_move.down = false,
+                    _ => panic!("Uh Oh Start"),
                 }
-                println!("Handling event...{} Can i move? {}", co1.data().name, format!("{:#?}", can_move));
+                // println!(
+                //     "Handling event...{} Can i move? {}",
+                //     co1.data().name,
+                //     format!("{:#?}", can_move)
+                // );
+            }
+        }
+    }
+    if let &ContactEvent::Stopped(collider1, collider2) = event {
+        if world.contact_pair(collider1, collider2, true).is_some() {
+            let pair = world.contact_pair(collider1, collider2, true).unwrap();
+            let contact = pair.3.deepest_contact().unwrap();
+            let co1 = world.collision_object(collider1).unwrap();
+            let co2 = world.collision_object(collider2).unwrap();
+            for (_id, (_player, can_move)) in
+                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
+            {
+                if co1.data().collision_type == CollisionType::Player {
+                    let normal = contact.contact.normal.into_inner().data;
+                    println!("Stop Normal {:?}", normal);
+                    let normals = [normal[0] as i32, normal[1] as i32];
+                    match normals {
+                        [-1, 0] => can_move.left = true,
+                        [1, 0] => can_move.right = true,
+                        [-0, -1] => can_move.up = true,
+                        [0, 1] => can_move.down = true,
+                        _ => panic!("Uh Oh"),
+                    }
+                // println!(
+                //     "Handling event...{} Can i move? {}",
+                //     co2.data().name,
+                //     format!("{:#?}", can_move)
+                // );
+                } else if co2.data().collision_type == CollisionType::Player {
+                    let normal = (-contact.contact.normal).into_inner().data;
+                    println!("Stop Normal {:?}", normal);
+                    let normals = [normal[0] as i32, normal[1] as i32];
+                    match normals {
+                        [-1, 0] => can_move.left = true,
+                        [1, 0] => can_move.right = true,
+                        [-0, -1] => can_move.up = true,
+                        [0, 1] => can_move.down = true,
+                        _ => panic!("Uh Oh"),
+                    }
+                    // println!(
+                    //     "Handling event...{} Can i move? {}",
+                    //     co1.data().name,
+                    //     format!("{:#?}", can_move)
+                    // );
+                }
+            }
+        } else {
+            for (_id, (_player, can_move)) in
+                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
+            {
+                can_move.left = true;
+                can_move.right = true;
+                can_move.up = true;
+                can_move.down= true;
             }
         }
     }
@@ -185,8 +259,72 @@ fn get_layer_size(lyr: tiled::Layer) -> Vec2<u32> {
     }
     return Vec2::new(size_x, size_y);
 }
+fn create_physics_world(
+    lyrs: &Vec<tiled::Layer>,
+    sprite_map: &HashMap<u32, Sprite>,
+    physics_world: &mut CollisionWorld<f32, CollisionObjectData>,
+) {
+    let mut tile_group = CollisionGroups::new();
+    tile_group.set_membership(&[3]);
+    tile_group.set_whitelist(&[1]);
+    let shape_data = CollisionObjectData::new("world obj", CollisionType::World);
+    let contacts_query = GeometricQueryType::Contacts(0.0, 0.0);
+    for lyr in lyrs {
+        for (y, row) in lyr.tiles.iter().enumerate().clone() {
+            for (x, &tile) in row.iter().enumerate() {
+                if tile.gid == 0 {
+                    continue;
+                }
+                let gid = tile.gid;
+                let sprite = sprite_map.get(&gid).unwrap();
+                let mut rotation: f32 = 0.0;
+                if tile.flip_h {
+                    rotation += 180.0;
+                }
+                if tile.flip_d {
+                    rotation -= 90.0;
+                }
+                if tile.flip_v {
+                    rotation -= 0.0;
+                }
+                if sprite.collision_objects.is_some() {
+                    let objs = sprite.collision_objects.as_ref().unwrap();
+                    let obj = &objs[0];
+                    let mut points: Vec<Point2<f32>> = Vec::new();
+                    let pts: Option<&Vec<_>> = match &obj.shape {
+                        ObjectShape::Polygon { points } => Some(points),
+                        _ => None,
+                    };
 
-fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
+                    if pts.is_some() {
+                        for point in pts.unwrap() {
+                            points.push(Point2::new(point.0, point.1))
+                        }
+                    } //ConvexPolygon::try_new(points).unwrap()
+                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(16.0, 16.0)));
+                    let shape_pos = Isometry2::new(
+                        Vector2::new(x as f32 * 32.0, y as f32 * 32.0),
+                        nalgebra::zero(),
+                    );
+                    physics_world.add(
+                        shape_pos,
+                        shape,
+                        tile_group,
+                        contacts_query,
+                        shape_data.clone(),
+                    );
+                }
+                //println!("{:?}", &sprite.texture);
+            }
+        }
+    }
+}
+fn draw_layer(
+    lyr: tiled::Layer,
+    texture_map: &HashMap<String, Texture>,
+    sprite_map: &HashMap<u32, Sprite>,
+    ctx: &mut Context,
+) {
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         for (x, &tile) in row.iter().enumerate() {
             if tile.gid == 0 {
@@ -194,9 +332,9 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
             }
 
             let gid = tile.gid;
-            let sprite = ste.sprite_map.get(&gid).unwrap();
-            //println!("{:?}", &sprite.texture);
-            let texture = ste.texture_map.get(&sprite.texture).unwrap();
+            let sprite = sprite_map.get(&gid).unwrap();
+            let rect: Rectangle;
+            let texture = texture_map.get(&sprite.texture).unwrap();
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
                 rotation += 180.0;
@@ -207,6 +345,7 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
             if tile.flip_v {
                 rotation -= 0.0;
             }
+
             graphics::draw(
                 ctx,
                 texture,
@@ -217,15 +356,13 @@ fn draw_layer(lyr: tiled::Layer, ste: &mut GameState, ctx: &mut Context) {
                     .clip(sprite.rect)
                     .rotation(rotation.to_radians()),
             );
+            //println!("{:?}", &sprite.texture);
         }
     }
 }
 
 fn new_player(ctx: &mut Context, world: &mut World) -> (tetra::Result<Entity>, Vec2<f32>) {
-    let position = Vec2::new(
-        (WINDOW_WIDTH / 2.0) - ((CHAR_HEIGHT / 2.0) * 2.0),
-        (WINDOW_HEIGHT / 2.0) - ((CHAR_WIDTH / 2.0) * 2.0),
-    );
+    let position = Vec2::new(800.0 - (CHAR_WIDTH), 800.0 - (CHAR_WIDTH));
     let mut camera = Camera::with_window_size(ctx);
     camera.position = position;
 
@@ -264,8 +401,14 @@ fn player_update(
         &Player,
         &CanMove,
     )>() {
+        // println!(
+        //     "Handling event.. Can i move? {}",
+        //     format!("{:#?}", can_move)
+        // );
+        let mut translation: Translation2<f32> = Translation2::new(0.0, 0.0);
         if input::is_key_down(ctx, Key::W) && can_move.up {
             pos.y -= PLAYER_SPEED;
+            translation.y -= PLAYER_SPEED;
             camera.0.position.y -= PLAYER_SPEED;
             anim.direction = Direction::Up;
             anim_map
@@ -275,6 +418,7 @@ fn player_update(
         }
         if input::is_key_down(ctx, Key::S) && can_move.down {
             pos.y += PLAYER_SPEED;
+            translation.y += PLAYER_SPEED;
             camera.0.position.y += PLAYER_SPEED;
             anim.direction = Direction::Down;
             anim_map
@@ -284,6 +428,7 @@ fn player_update(
         }
         if input::is_key_down(ctx, Key::D) && can_move.right {
             pos.x += PLAYER_SPEED;
+            translation.x += PLAYER_SPEED;
             camera.0.position.x += PLAYER_SPEED;
             anim.direction = Direction::Right;
             anim_map
@@ -293,6 +438,7 @@ fn player_update(
         }
         if input::is_key_down(ctx, Key::A) && can_move.left {
             pos.x -= PLAYER_SPEED;
+            translation.x -= PLAYER_SPEED;
             camera.0.position.x -= PLAYER_SPEED;
             anim.direction = Direction::Left;
             anim_map
@@ -301,7 +447,9 @@ fn player_update(
                 .advance(ctx);
         }
         let player_obj = physics_world.0.get_mut(physics_world.1).unwrap();
-        player_obj.set_position(Isometry2::new(Vector2::new(pos.x, pos.y), nalgebra::zero()));
+        let mut new_pos = player_obj.position().clone();
+        new_pos.append_translation_mut(&translation);
+        player_obj.set_position(new_pos);
         camera.0.update();
     }
 }
@@ -358,48 +506,63 @@ impl GameState {
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
         let mut gid = tilesets[0].first_gid as u32;
         for x in 0..tilesets.len() {
-            let map_tileset = &tilesets[x];
+            let map_tileset = tilesets[x].clone();
             let tile_width = map_tileset.tile_width as i32;
             let tile_height = map_tileset.tile_height as i32;
             let tileset_width = &map_tileset.images[0].width;
             let tileset_height = &map_tileset.images[0].height;
             let tileset_sprite_columns = tileset_width / tile_width as i32;
             let tileset_sprite_rows = tileset_height / tile_height as i32;
+            let mut object_map: HashMap<u32, Vec<tiled::Object>> = HashMap::new();
+            for tile in map_tileset.tiles {
+                object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
+            }
+            let mut id = 0;
             for x in 0..tileset_sprite_rows {
                 for y in 0..tileset_sprite_columns {
                     let sprite_w = tile_width as f32;
                     let sprite_h = tile_height as f32;
                     let pos_x = (x * tile_width) as f32;
                     let pos_y = (y * tile_height) as f32;
-
+                    let objects = object_map.remove(&id).clone();
                     let sprite = Sprite {
                         rect: Rectangle::new(pos_y, pos_x, sprite_w, sprite_h),
                         pos: Vec2::new(pos_x, pos_y),
                         texture: map_tileset.name.clone(),
+                        collision_objects: objects,
                     };
 
                     tile_sprites.entry(gid).or_insert(sprite);
                     gid += 1;
+                    id += 1;
                 }
             }
         }
         let player = new_player(ctx, &mut world);
         let size = get_layer_size(tiled_data.layers.clone().remove(0));
-
         let plane_left = ShapeHandle::new(Plane::new(Vector2::x_axis()));
-        let plane_bottom = ShapeHandle::new(Plane::new(Vector2::y_axis()));
+        let plane_bottom = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
         let plane_right = ShapeHandle::new(Plane::new(-Vector2::x_axis()));
-        let plane_top = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
+        let plane_top = ShapeHandle::new(Plane::new(Vector2::y_axis()));
 
-        let player_shape = ShapeHandle::new(Ball::new(16.0));
+        let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(8.0, 8.0)));
 
-        let player_pos = Isometry2::new(Vector2::new(player.1.x, player.1.y), nalgebra::zero());
+        let player_pos = Isometry2::new(Vector2::new(800.0, 800.0), nalgebra::zero());
 
         let plane_pos = [
-            Isometry2::new(Vector2::new(-(size.x as f32 / 2.0), 0.0), nalgebra::zero()),
-            Isometry2::new(Vector2::new(0.0, -(size.y as f32 / 2.0)), nalgebra::zero()),
-            Isometry2::new(Vector2::new(size.x as f32 / 2.0, 0.0), nalgebra::zero()),
-            Isometry2::new(Vector2::new(0.0, size.y as f32 / 2.0), nalgebra::zero()),
+            Isometry2::new(Vector2::new(0.0, 0.0), nalgebra::zero()),
+            Isometry2::new(
+                Vector2::new(0.0, (size.y as f32 - 1.0) * 16.0 * SCALE),
+                nalgebra::zero(),
+            ),
+            Isometry2::new(
+                Vector2::new(50 as f32 * 16.0 * SCALE, 0.0),
+                nalgebra::zero(),
+            ),
+            Isometry2::new(
+                Vector2::new(50 as f32 * 16.0 * SCALE, -32.0),
+                nalgebra::zero(),
+            ),
         ];
 
         let mut player_group = CollisionGroups::new();
@@ -410,16 +573,16 @@ impl GameState {
         plane_group.set_whitelist(&[1]);
 
         let plane_data = [
-            CollisionObjectData::new("left", CollisionType::World),
-            CollisionObjectData::new("bottom", CollisionType::World),
-            CollisionObjectData::new("right", CollisionType::World),
-            CollisionObjectData::new("top", CollisionType::World),
+            CollisionObjectData::new("left", CollisionType::Left),
+            CollisionObjectData::new("bottom", CollisionType::Bottom),
+            CollisionObjectData::new("right", CollisionType::Right),
+            CollisionObjectData::new("top", CollisionType::Top),
         ];
 
         let player_data = CollisionObjectData::new("player", CollisionType::Player);
 
         let mut physics_world: CollisionWorld<f32, CollisionObjectData> = CollisionWorld::new(0.02);
-        //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
+        fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
         let contacts_query = GeometricQueryType::Contacts(0.0, 0.0);
         let proximity_query = GeometricQueryType::Proximity(0.0);
         physics_world.add(
@@ -460,6 +623,9 @@ impl GameState {
                 player_data.clone(),
             )
             .0;
+        let layers = tiled_data.layers;
+
+        create_physics_world(&layers, &tile_sprites, &mut physics_world);
 
         Ok(GameState {
             collision: (physics_world, player_handle),
@@ -467,7 +633,7 @@ impl GameState {
             world,
             player_anim_map: anims,
             sprite_map: tile_sprites,
-            layers: tiled_data.layers,
+            layers: layers,
             texture_map: file_to_texture,
         })
     }
@@ -483,7 +649,7 @@ impl State for GameState {
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
 
-        draw_layer(bg_layer.clone(), self, ctx);
+        draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
 
         for (_id, (pos, _camera, anim, _player)) in
             &mut self
@@ -502,7 +668,7 @@ impl State for GameState {
                 animation,
                 DrawParams::new()
                     .position(pos.clone())
-                    .origin(Vec2::new(18.0, 12.5))
+                    .origin(Vec2::new(12.5, 12.5))
                     .scale(Vec2::new(SCALE, SCALE)),
             );
         }
@@ -510,7 +676,7 @@ impl State for GameState {
         //graphics::draw(ctx, &self.player, DrawParams::default());
 
         for x in layers {
-            draw_layer(x, self, ctx);
+            draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
         }
 
         Ok(())
@@ -519,7 +685,6 @@ impl State for GameState {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         let physics_world = &mut self.collision.0;
         let player_handle = self.collision.1;
-        physics_world.update();
         for event in physics_world.contact_events() {
             handle_contact_event(&physics_world, event, &mut self.world);
         }
@@ -529,14 +694,7 @@ impl State for GameState {
             &mut self.player_anim_map,
             (physics_world, player_handle),
         );
-        for (_id, (_player, can_move)) in
-            &mut self.world.query::<(&Player, &mut CanMove)>().iter().take(1)
-        {
-            can_move.up = true;
-            can_move.down = true;
-            can_move.left = true;
-            can_move.right = true;
-        }
+        physics_world.update();
 
         Ok(())
     }
