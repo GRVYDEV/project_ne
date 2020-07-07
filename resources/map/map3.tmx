@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.4" tiledversion="1.4.1" orientation="orthogonal" renderorder="right-down" width="50" height="50" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="1">
+ <tileset firstgid="1" name="outdoors" tilewidth="16" tileheight="16" tilecount="1248" columns="52">
+  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/outside.png" width="832" height="384"/>
+  <tile id="757">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="8" y="-4" width="9" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="758">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="759">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="9" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="976">
+   <objectgroup draworder="index" id="2">
+    <object id="3" template="../../../Documents/tree-left.tx" x="11" y="-4"/>
+   </objectgroup>
+  </tile>
+  <tile id="977">
+   <objectgroup draworder="index" id="2">
+    <object id="2" template="../../../Documents/tree-mid.tx" x="0" y="-4"/>
+   </objectgroup>
+  </tile>
+  <tile id="978">
+   <objectgroup draworder="index" id="2">
+    <object id="2" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="979">
+   <objectgroup draworder="index" id="2">
+    <object id="2" template="../../../Documents/tree-right.tx" x="-1" y="-4"/>
+   </objectgroup>
+  </tile>
+  <tile id="982">
+   <objectgroup draworder="index" id="2">
+    <object id="3" x="11" y="-4" width="6" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="983">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="984">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="985">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="10" height="18"/>
+   </objectgroup>
+  </tile>
+ </tileset>
+ <tileset firstgid="1249" name="terrain_2" tilewidth="16" tileheight="16" tilecount="1482" columns="39">
+  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/terrain.png" width="624" height="608"/>
+  <tile id="586">
+   <objectgroup draworder="index" id="2">
+    <object id="6" name="Test" x="12" y="0" width="4" height="16"/>
+   </objectgroup>
+  </tile>
+ </tileset>
+ <tileset firstgid="2731" name="chest-sheet" tilewidth="32" tileheight="32" tilecount="144" columns="12">
+  <image source="../../../Desktop/Game Dev/AnimationSheets/chest-sheet.png" width="384" height="384"/>
+ </tileset>
+ <layer id="1" name="Tile Layer 1" width="50" height="50">
+  <data encoding="base64" compression="gzip">
+   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
+  </data>
+ </layer>
+ <layer id="3" name="Tile Layer 3" width="50" height="50">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAE+3WMQrDMBAEwEPu8v9f5DVxDIn9kNhl7gHGlUESmoHtV8UeimBEz0ftBnDuVyL2zFFqN4H2tbCXqw4t9IPe1NzNSJsd6a1c+0wR38ya2ababQDu8cp7NmfemcVtAwBu5q8BAEAP/qP075UQJwAA
+  </data>
+ </layer>
+ <layer id="2" name="trees" width="50" height="50">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAE+3WR1LDQBSE4ZHkQLgMwZkF9wCWgMGkmwBLcjJwEGBJjpch/ReQEFiF5kF31bed6VeqNyXnFOVnmQidm8RUmHeT3rJK/zWsG5/jjP7nuDA+x1+ND/uS1CFtPx/2JalD2n4+7EtSBx/6KV8n670OOSdCAUWUUI45O8u7s97rGufU0UATLYzFnJ3m7rSzZr03Hc5ZwCKWsIyVmLPT3J3X+7nHffs4wCGO0O2hQ17v0z33PeART3jGi8E3shSx1+hDPwYwGOXd6vtp0bmLY5zgFOMxc7wGzr3hHR9wfLfA4LcbovMwRjCKCqoG55im8wxm0cYc5g3OsUHnTWxhGzvYNTjHJZ2vcI0b3OLO4ByO/Q8QIkIBRYNvW4XOVdRQRwNNg3Moyn+L/jX8iv41/Ir+NfyK/jUURVEURVEU5XfzCTk6FY8QJwAA
+  </data>
+ </layer>
+</map>
