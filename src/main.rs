@@ -1,11 +1,20 @@
 use hecs::{Entity, World};
 use nalgebra::base::{Unit, Vector2};
 use nalgebra::geometry::{Isometry2, Point2, Translation2};
+use nalgebra::Vector3;
 use ncollide2d::pipeline::{
     object, CollisionGroups, CollisionWorld, ContactEvent, GeometricQueryType, ProximityEvent,
 };
 use ncollide2d::query::Proximity;
 use ncollide2d::shape::{Ball, ConvexPolygon, Cuboid, Plane, ShapeHandle};
+use nphysics2d::force_generator::DefaultForceGeneratorSet;
+use nphysics2d::joint::DefaultJointConstraintSet;
+use nphysics2d::math::{Force, ForceType, Velocity};
+use nphysics2d::object::{
+    BodyPartHandle, BodyStatus, Collider, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
+    DefaultColliderSet, RigidBody, RigidBodyDesc,
+};
+use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 use std::collections::HashMap;
 use std::fs;
 use std::time::Duration;
@@ -49,16 +58,17 @@ struct CanMove {
 }
 
 struct GameState {
-    player: Entity,
     world: World,
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<Layer>,
     texture_map: HashMap<String, Texture>,
     player_anim_map: HashMap<AnimationKey, Animation>,
-    collision: (
-        CollisionWorld<f32, CollisionObjectData>,
-        object::CollisionObjectSlabHandle,
-    ),
+    mechanical_world: DefaultMechanicalWorld<f32>,
+    geometrical_world: DefaultGeometricalWorld<f32>,
+    body_set: DefaultBodySet<f32>,
+    collider_set: DefaultColliderSet<f32>,
+    constraint_set: DefaultJointConstraintSet<f32>,
+    force_gen_set: DefaultForceGeneratorSet<f32>,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -83,8 +93,6 @@ pub enum AnimationKey {
 struct EntityAnimation {
     direction: Direction,
 }
-
-struct PlayerCamera(Camera);
 
 struct Player;
 
@@ -141,7 +149,7 @@ fn handle_contact_event(
 ) {
     if let &ContactEvent::Started(collider1, collider2) = event {
         if world.contact_pair(collider1, collider2, true).is_some() {
-            let pair = world.contact_pair(collider1, collider2, false).unwrap();
+            let pair = world.contact_pair(collider1, collider2, true).unwrap();
             let contact = pair.3.deepest_contact().unwrap();
             let co1 = world.collision_object(collider1).unwrap();
             let co2 = world.collision_object(collider2).unwrap();
@@ -149,6 +157,7 @@ fn handle_contact_event(
                 ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
             {
                 if co1.data().collision_type == CollisionType::Player {
+                    println!("Player is Co1");
                     let normal = contact.contact.normal.into_inner().data;
                     //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
                     let normals = [normal[0] as f32, normal[1] as f32];
@@ -156,21 +165,23 @@ fn handle_contact_event(
                         contact.contact.world1.coords.data[0],
                         contact.contact.world1.coords.data[1],
                     ];
-                    println!("Normal {:?}", normals);
+                    println!("Normal {:?}", normal);
                     let player_pos = [
                         co1.position().translation.vector.data[0],
                         co1.position().translation.vector.data[1],
                     ];
                     let local_frame = [
-                        player_contact[0] / player_pos[0],
-                        player_contact[1] / player_pos[1],
+                        (player_contact[0] / player_pos[0]) as f32,
+                        (player_contact[1] / player_pos[1]) as f32,
                     ];
-                    println!(
-                        "Player Contact: {:?} Player Pos: {:?}",
-                        player_contact, player_pos
-                    );
+                    let pos = [(local_frame[0] - 8.0).abs(), (local_frame[1] - 8.0).abs()];
+                    let neg = [
+                        (local_frame[0] - (-8.0)).abs(),
+                        (local_frame[1] - (-8.0)).abs(),
+                    ];
+                    println!("Pos: {:?} Neg: {:?}", pos, neg);
                     println!("Local Frame {:?}", local_frame);
-                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
+                    if normals[0] <= -0.1 && normal[1] <= 0.0 {
                         can_move.left = false
                     } else if normals[0] > 0.0 && normal[1] >= 0.0 {
                         can_move.right = false;
@@ -185,6 +196,7 @@ fn handle_contact_event(
                 //     format!("{:#?}", can_move)
                 // );
                 } else if co2.data().collision_type == CollisionType::Player {
+                    println!("Player is Co2");
                     let normal = (-contact.contact.normal).into_inner().data;
                     //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
                     let normals = [normal[0] as f32, normal[1] as f32];
@@ -317,7 +329,8 @@ fn get_layer_size(lyr: tiled::Layer) -> Vec2<u32> {
 fn create_physics_world(
     lyrs: &Vec<tiled::Layer>,
     sprite_map: &HashMap<u32, Sprite>,
-    physics_world: &mut CollisionWorld<f32, CollisionObjectData>,
+    colliders: &mut DefaultColliderSet<f32>,
+    bodies: &mut DefaultBodySet<f32>,
 ) {
     let mut tile_group = CollisionGroups::new();
     tile_group.set_membership(&[3]);
@@ -356,16 +369,21 @@ fn create_physics_world(
                             points.push(Point2::new(point.0, point.1))
                         }
                     } //ConvexPolygon::try_new(points).unwrap()
-                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(16.0, 16.0)));
+                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(8.0, 8.0)));
                     let shape_pos =
-                        Isometry2::new(Vector2::new(x as f32 * 32.0, y as f32 * 32.0), rotation);
-                    physics_world.add(
-                        shape_pos,
-                        shape,
-                        tile_group,
-                        contacts_query,
-                        shape_data.clone(),
-                    );
+                        Isometry2::new(Vector2::new(x as f32  * 32.0, y as f32  * 32.0), rotation);
+                    let world_body = RigidBodyDesc::new()
+                        .position(shape_pos)
+                        .gravity_enabled(false)
+                        .status(BodyStatus::Static)
+                        .build();
+
+                    let world_body_handle = bodies.insert(world_body);
+
+                    let world_body_collider =
+                        ColliderDesc::new(shape).build(BodyPartHandle(world_body_handle, 0));
+
+                    colliders.insert(world_body_collider);
                 }
                 //println!("{:?}", &sprite.texture);
             }
@@ -414,96 +432,75 @@ fn draw_layer(
     }
 }
 
-fn new_player(ctx: &mut Context, world: &mut World) -> (tetra::Result<Entity>, Vec2<f32>) {
-    let position = Vec2::new(800.0 - (CHAR_WIDTH), 800.0 - (CHAR_WIDTH));
-    let mut camera = Camera::with_window_size(ctx);
-    camera.position = position;
+fn new_player(
+    ctx: &mut Context,
+    world: &mut World,
+    body: DefaultBodyHandle,
+) -> tetra::Result<Entity> {
+    let camera = Camera::with_window_size(ctx);
 
-    (
-        Ok(world.spawn((
-            Player,
-            EntityAnimation {
-                direction: Direction::Down,
-            },
-            PlayerCamera(camera),
-            position,
-            CanMove {
-                up: true,
-                down: true,
-                left: true,
-                right: true,
-            },
-        ))),
-        position,
-    )
+    Ok(world.spawn((
+        Player,
+        EntityAnimation {
+            direction: Direction::Down,
+        },
+        camera,
+        body,
+        CanMove {
+            up: true,
+            down: true,
+            left: true,
+            right: true,
+        },
+    )))
 }
 
 fn player_update(
+    body_set: &mut DefaultBodySet<f32>,
     ctx: &mut Context,
     world: &mut World,
     anim_map: &mut HashMap<AnimationKey, Animation>,
-    physics_world: (
-        &mut CollisionWorld<f32, CollisionObjectData>,
-        object::CollisionObjectSlabHandle,
-    ),
 ) {
-    for (_id, (pos, camera, anim, _player, can_move)) in &mut world.query::<(
-        &mut Vec2<f32>,
-        &mut PlayerCamera,
+    for (_id, (camera, anim, _player, can_move, handle)) in &mut world.query::<(
+        &mut Camera,
         &mut EntityAnimation,
         &Player,
         &CanMove,
+        &DefaultBodyHandle,
     )>() {
-        // println!(
-        //     "Handling event.. Can i move? {}",
-        //     format!("{:#?}", can_move)
-        // );
-        let mut translation: Translation2<f32> = Translation2::new(0.0, 0.0);
-        if input::is_key_down(ctx, Key::W) && can_move.up {
-            pos.y -= PLAYER_SPEED;
-            translation.y -= PLAYER_SPEED;
-            camera.0.position.y -= PLAYER_SPEED;
+        let player_body = body_set.rigid_body_mut(*handle).unwrap();
+        if input::is_key_down(ctx, Key::W) {
+            player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED * 100.0));
             anim.direction = Direction::Up;
             anim_map
                 .get_mut(&AnimationKey::PlayerUp)
                 .unwrap()
                 .advance(ctx);
         }
-        if input::is_key_down(ctx, Key::S) && can_move.down {
-            pos.y += PLAYER_SPEED;
-            translation.y += PLAYER_SPEED;
-            camera.0.position.y += PLAYER_SPEED;
+        if input::is_key_down(ctx, Key::S) {
+            player_body.set_linear_velocity(Vector2::new(0.0, PLAYER_SPEED * 100.0));
             anim.direction = Direction::Down;
             anim_map
                 .get_mut(&AnimationKey::PlayerDown)
                 .unwrap()
                 .advance(ctx);
         }
-        if input::is_key_down(ctx, Key::D) && can_move.right {
-            pos.x += PLAYER_SPEED;
-            translation.x += PLAYER_SPEED;
-            camera.0.position.x += PLAYER_SPEED;
+        if input::is_key_down(ctx, Key::D) {
+            player_body.set_linear_velocity(Vector2::new(PLAYER_SPEED * 100.0, 0.0));
             anim.direction = Direction::Right;
             anim_map
                 .get_mut(&AnimationKey::PlayerRight)
                 .unwrap()
                 .advance(ctx);
         }
-        if input::is_key_down(ctx, Key::A) && can_move.left {
-            pos.x -= PLAYER_SPEED;
-            translation.x -= PLAYER_SPEED;
-            camera.0.position.x -= PLAYER_SPEED;
+        if input::is_key_down(ctx, Key::A) {
+            player_body.set_linear_velocity(Vector2::new(-PLAYER_SPEED * 100.0, 0.0));
             anim.direction = Direction::Left;
             anim_map
                 .get_mut(&AnimationKey::PlayerLeft)
                 .unwrap()
                 .advance(ctx);
         }
-        let player_obj = physics_world.0.get_mut(physics_world.1).unwrap();
-        let mut new_pos = player_obj.position().clone();
-        new_pos.append_translation_mut(&translation);
-        player_obj.set_position(new_pos);
-        camera.0.update();
     }
 }
 
@@ -591,29 +588,34 @@ impl GameState {
                 }
             }
         }
-        let player = new_player(ctx, &mut world);
-        let size = get_layer_size(tiled_data.layers.clone().remove(0));
-        let plane_left = ShapeHandle::new(Plane::new(Vector2::x_axis()));
-        let plane_bottom = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
-        let plane_right = ShapeHandle::new(Plane::new(-Vector2::x_axis()));
-        let plane_top = ShapeHandle::new(Plane::new(Vector2::y_axis()));
 
-        let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(8.0, 8.0)));
+        let size = get_layer_size(tiled_data.layers.clone().remove(0));
+
+        let plane_left_shape = ShapeHandle::new(Plane::new(Vector2::x_axis()));
+        let plane_bottom_shape = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
+        let plane_right_shape = ShapeHandle::new(Plane::new(-Vector2::x_axis()));
+        let plane_top_shape = ShapeHandle::new(Plane::new(Vector2::y_axis()));
+
+        let player_shape = ShapeHandle::new(Ball::new(12.5));
 
         let player_pos = Isometry2::new(Vector2::new(800.0, 800.0), nalgebra::zero());
 
         let plane_pos = [
+            //left 
             Isometry2::new(Vector2::new(0.0, 0.0), nalgebra::zero()),
+            //bottom
             Isometry2::new(
-                Vector2::new(0.0, (size.y as f32 - 1.0) * 16.0 * SCALE),
+                Vector2::new(0.0, 1600.0 ),
                 nalgebra::zero(),
             ),
+            //right
             Isometry2::new(
-                Vector2::new(50 as f32 * 16.0 * SCALE, 0.0),
+                Vector2::new(1600.0, 0.0),
                 nalgebra::zero(),
             ),
+            //top
             Isometry2::new(
-                Vector2::new(50 as f32 * 16.0 * SCALE, -32.0),
+                Vector2::new(1600.0, 0.0),
                 nalgebra::zero(),
             ),
         ];
@@ -634,60 +636,87 @@ impl GameState {
 
         let player_data = CollisionObjectData::new("player", CollisionType::Player);
 
-        let mut physics_world: CollisionWorld<f32, CollisionObjectData> = CollisionWorld::new(0.02);
-        fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
-        let contacts_query = GeometricQueryType::Contacts(0.0, 0.0);
-        let proximity_query = GeometricQueryType::Proximity(0.0);
-        physics_world.add(
-            plane_pos[0],
-            plane_left,
-            plane_group,
-            contacts_query,
-            plane_data[0].clone(),
-        );
-        physics_world.add(
-            plane_pos[1],
-            plane_bottom,
-            plane_group,
-            contacts_query,
-            plane_data[1].clone(),
-        );
-        physics_world.add(
-            plane_pos[2],
-            plane_right,
-            plane_group,
-            contacts_query,
-            plane_data[2].clone(),
-        );
-        physics_world.add(
-            plane_pos[3],
-            plane_top,
-            plane_group,
-            contacts_query,
-            plane_data[3].clone(),
-        );
+        let mut physics_world: CollisionWorld<f32, CollisionObjectData> = CollisionWorld::new(0.00);
+        let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
+        let mechanical_world: DefaultMechanicalWorld<f32> =
+            DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
+        let mut bodies = DefaultBodySet::new();
+        let mut colliders = DefaultColliderSet::new();
+        let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
+        let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
 
-        let player_handle = physics_world
-            .add(
-                player_pos,
-                player_shape,
-                player_group,
-                contacts_query,
-                player_data.clone(),
-            )
-            .0;
+        let player_body = RigidBodyDesc::new()
+            .position(player_pos)
+            .gravity_enabled(false)
+            .status(BodyStatus::Dynamic)
+            .mass(1.2)
+            .build();
+
+        let plane_left = RigidBodyDesc::new()
+            .position(plane_pos[0])
+            .gravity_enabled(false)
+            .status(BodyStatus::Static)
+            .build();
+        let plane_bottom = RigidBodyDesc::new()
+            .position(plane_pos[1])
+            .gravity_enabled(false)
+            .status(BodyStatus::Static)
+            .build();
+        let plane_right = RigidBodyDesc::new()
+            .position(plane_pos[2])
+            .gravity_enabled(false)
+            .status(BodyStatus::Static)
+            .build();
+        let plane_top = RigidBodyDesc::new()
+            .position(plane_pos[3])
+            .gravity_enabled(false)
+            .status(BodyStatus::Static)
+            .build();
+
+        let plane_left_handle = bodies.insert(plane_left);
+        let plane_right_handle = bodies.insert(plane_right);
+        let plane_bottom_handle = bodies.insert(plane_bottom);
+        let plane_top_handle = bodies.insert(plane_top);
+        let player_handle = bodies.insert(player_body);
+
+        new_player(ctx, &mut world, player_handle.clone());
+
+        let plane_left_collider =
+            ColliderDesc::new(plane_left_shape).build(BodyPartHandle(plane_left_handle, 0));
+        let plane_right_collider =
+            ColliderDesc::new(plane_right_shape).build(BodyPartHandle(plane_right_handle, 0));
+        let plane_bottom_collider =
+            ColliderDesc::new(plane_bottom_shape).build(BodyPartHandle(plane_bottom_handle, 0));
+        let plane_top_collider =
+            ColliderDesc::new(plane_top_shape).build(BodyPartHandle(plane_top_handle, 0));
+
+        let player_collider =
+            ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
+
+        colliders.insert(plane_left_collider);
+        colliders.insert(plane_right_collider);
+        colliders.insert(plane_bottom_collider);
+        colliders.insert(plane_top_collider);
+        colliders.insert(player_collider);
+
+        //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
+
         let layers = tiled_data.layers;
 
-        create_physics_world(&layers, &tile_sprites, &mut physics_world);
+        create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
         Ok(GameState {
-            collision: (physics_world, player_handle),
-            player: player.0?,
             world,
             player_anim_map: anims,
             sprite_map: tile_sprites,
             layers: layers,
             texture_map: file_to_texture,
+            mechanical_world: mechanical_world,
+            geometrical_world: geometrical_world,
+            body_set: bodies,
+            collider_set: colliders,
+            force_gen_set: force_generators,
+            constraint_set: joint_constraints,
         })
     }
 }
@@ -695,8 +724,8 @@ impl GameState {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (_id, camera) in self.world.query::<&PlayerCamera>().iter().take(1) {
-            graphics::set_transform_matrix(ctx, camera.0.as_matrix());
+        for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
+            graphics::set_transform_matrix(ctx, camera.as_matrix());
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
         let mut layers = self.layers.clone();
@@ -704,10 +733,10 @@ impl State for GameState {
 
         draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
 
-        for (_id, (pos, _camera, anim, _player)) in
+        for (_id, (_camera, anim, _player, handle)) in
             &mut self
                 .world
-                .query::<(&Vec2<f32>, &PlayerCamera, &EntityAnimation, &Player)>()
+                .query::<(&Camera, &EntityAnimation, &Player, &DefaultBodyHandle)>()
         {
             let key = match anim.direction {
                 Direction::Up => AnimationKey::PlayerUp,
@@ -716,12 +745,17 @@ impl State for GameState {
                 Direction::Right => AnimationKey::PlayerRight,
             };
             let animation = self.player_anim_map.get(&key).unwrap();
+            let player_body = self.body_set.rigid_body(*handle).unwrap();
+            let player_pos = Vec2::new(
+                player_body.position().translation.vector.x ,
+                player_body.position().translation.vector.y ,
+            );
             graphics::draw(
                 ctx,
                 animation,
                 DrawParams::new()
-                    .position(pos.clone())
-                    .origin(Vec2::new(12.5, 12.5))
+                    .position(player_pos)
+                    .origin(Vec2::new(12.5, 36.0))
                     .scale(Vec2::new(SCALE, SCALE)),
             );
         }
@@ -736,28 +770,43 @@ impl State for GameState {
     }
 
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        let physics_world = &mut self.collision.0;
-        let player_handle = self.collision.1;
-        for event in physics_world.contact_events() {
-            handle_contact_event(&physics_world, event, &mut self.world);
-        }
         player_update(
+            &mut self.body_set,
             ctx,
             &mut self.world,
             &mut self.player_anim_map,
-            (physics_world, player_handle),
         );
-        physics_world.perform_broad_phase();
-        physics_world.perform_narrow_phase();
+        self.mechanical_world.step(
+            &mut self.geometrical_world,
+            &mut self.body_set,
+            &mut self.collider_set,
+            &mut self.constraint_set,
+            &mut self.force_gen_set,
+        );
+
+        for (_id, (camera, _player, handle)) in
+            &mut self
+                .world
+                .query::<(&mut Camera, &Player, &DefaultBodyHandle)>()
+        {
+            let player_body = self.body_set.rigid_body_mut(*handle).unwrap();
+            player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
+            camera.position = Vec2::new(
+                player_body.position().translation.vector.x ,
+                player_body.position().translation.vector.y  ,
+            );
+            //println!("{:?} Physical Pos", camera.position );
+            camera.update();
+        }
 
         Ok(())
     }
 
     fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
         if let Event::Resized { width, height } = event {
-            for (_id, camera) in self.world.query::<&mut PlayerCamera>().iter().take(1) {
-                camera.0.set_viewport_size(width as f32, height as f32);
-                camera.0.update();
+            for (_id, camera) in self.world.query::<&mut Camera>().iter().take(1) {
+                camera.set_viewport_size(width as f32, height as f32);
+                camera.update();
             }
         }
         Ok(())
