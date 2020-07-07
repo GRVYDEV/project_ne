@@ -6,7 +6,7 @@ use ncollide2d::pipeline::{
     object, CollisionGroups, CollisionWorld, ContactEvent, GeometricQueryType, ProximityEvent,
 };
 use ncollide2d::query::Proximity;
-use ncollide2d::shape::{Ball, ConvexPolygon, Cuboid, Plane, ShapeHandle};
+use ncollide2d::shape::{Ball, ConvexPolygon, Cuboid, Plane, Polyline, ShapeHandle};
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::math::{Force, ForceType, Velocity};
@@ -32,10 +32,10 @@ const WINDOW_HEIGHT: f32 = 900.0;
 
 const SCALE: f32 = 2.0;
 
-const CHAR_HEIGHT: f32 = 36.0;
-const CHAR_WIDTH: f32 = 25.0;
+const CHAR_HEIGHT: f32 = 32.0;
+const CHAR_WIDTH: f32 = 19.0;
 
-const PLAYER_SPEED: f32 = 3.0;
+const PLAYER_SPEED: f32 = 3.0 * 75.0;
 
 const ANIM_SPEED: f64 = 0.2;
 
@@ -47,6 +47,10 @@ const TILESETS: &[(&str, &[u8])] = &[
     (
         "outdoors",
         include_bytes!("../resources/map/tilesets/outside.png"),
+    ),
+    (
+        "chest-sheet",
+        include_bytes!("../resources/map/tilesets/chest-sheet.png"),
     ),
 ];
 #[derive(Debug)]
@@ -72,10 +76,13 @@ struct GameState {
 }
 #[derive(Debug)]
 struct Sprite {
+    width: f32,
+    height: f32,
     rect: Rectangle,
     pos: Vec2<f32>,
     texture: String,
     collision_objects: Option<Vec<tiled::Object>>,
+    //animation: Option<Animation>,
 }
 pub enum Direction {
     Up,
@@ -95,215 +102,6 @@ struct EntityAnimation {
 }
 
 struct Player;
-
-#[derive(Clone, PartialEq)]
-pub enum CollisionType {
-    Player,
-    World,
-    Top,
-    Bottom,
-    Left,
-    Right,
-}
-
-#[derive(Clone)]
-struct CollisionObjectData {
-    pub name: &'static str,
-    pub collision_type: CollisionType,
-}
-
-impl CollisionObjectData {
-    pub fn new(name: &'static str, col_type: CollisionType) -> CollisionObjectData {
-        CollisionObjectData {
-            name: name,
-            collision_type: col_type,
-        }
-    }
-}
-
-fn handle_proximity_event(
-    world: &CollisionWorld<f32, CollisionObjectData>,
-    event: &ProximityEvent<object::CollisionObjectSlabHandle>,
-) {
-    let area_name;
-    let co1 = world.collision_object(event.collider1).unwrap();
-    let co2 = world.collision_object(event.collider2).unwrap();
-
-    if co1.data().collision_type == CollisionType::World {
-        area_name = co1.data().name;
-    } else {
-        area_name = co2.data().name;
-    }
-
-    if event.new_status == Proximity::Intersecting {
-        println!("The player is in the area");
-    } else if event.new_status == Proximity::Disjoint {
-        println!("The player is not in the area");
-    }
-}
-
-fn handle_contact_event(
-    world: &CollisionWorld<f32, CollisionObjectData>,
-    event: &ContactEvent<object::CollisionObjectSlabHandle>,
-    ecs_world: &mut World,
-) {
-    if let &ContactEvent::Started(collider1, collider2) = event {
-        if world.contact_pair(collider1, collider2, true).is_some() {
-            let pair = world.contact_pair(collider1, collider2, true).unwrap();
-            let contact = pair.3.deepest_contact().unwrap();
-            let co1 = world.collision_object(collider1).unwrap();
-            let co2 = world.collision_object(collider2).unwrap();
-            for (_id, (_player, can_move)) in
-                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
-            {
-                if co1.data().collision_type == CollisionType::Player {
-                    println!("Player is Co1");
-                    let normal = contact.contact.normal.into_inner().data;
-                    //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
-                    let normals = [normal[0] as f32, normal[1] as f32];
-                    let player_contact = [
-                        contact.contact.world1.coords.data[0],
-                        contact.contact.world1.coords.data[1],
-                    ];
-                    println!("Normal {:?}", normal);
-                    let player_pos = [
-                        co1.position().translation.vector.data[0],
-                        co1.position().translation.vector.data[1],
-                    ];
-                    let local_frame = [
-                        (player_contact[0] / player_pos[0]) as f32,
-                        (player_contact[1] / player_pos[1]) as f32,
-                    ];
-                    let pos = [(local_frame[0] - 8.0).abs(), (local_frame[1] - 8.0).abs()];
-                    let neg = [
-                        (local_frame[0] - (-8.0)).abs(),
-                        (local_frame[1] - (-8.0)).abs(),
-                    ];
-                    println!("Pos: {:?} Neg: {:?}", pos, neg);
-                    println!("Local Frame {:?}", local_frame);
-                    if normals[0] <= -0.1 && normal[1] <= 0.0 {
-                        can_move.left = false
-                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
-                        can_move.right = false;
-                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
-                        can_move.up = false;
-                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
-                        can_move.down = false;
-                    }
-                // println!(
-                //     "Handling event...{} Can i move? {}",
-                //     co2.data().name,
-                //     format!("{:#?}", can_move)
-                // );
-                } else if co2.data().collision_type == CollisionType::Player {
-                    println!("Player is Co2");
-                    let normal = (-contact.contact.normal).into_inner().data;
-                    //println!("Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
-                    let normals = [normal[0] as f32, normal[1] as f32];
-                    println!("Normal {:?}", normals);
-                    let player_contact = [
-                        contact.contact.world2.coords.data[0],
-                        contact.contact.world2.coords.data[1],
-                    ];
-                    let player_pos = [
-                        co2.position().translation.vector.data[0],
-                        co2.position().translation.vector.data[1],
-                    ];
-                    let local_frame = [
-                        player_contact[0] / player_pos[0],
-                        player_contact[1] / player_pos[1],
-                    ];
-                    println!(
-                        "Player Contact: {:?} Player Pos: {:?}",
-                        player_contact, player_pos
-                    );
-                    println!("Local Frame {:?}", local_frame);
-                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
-                        can_move.left = false
-                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
-                        can_move.right = false;
-                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
-                        can_move.up = false;
-                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
-                        can_move.down = false;
-                    }
-                    // println!(
-                    //     "Handling event...{} Can i move? {}",
-                    //     co1.data().name,
-                    //     format!("{:#?}", can_move)
-                    // );
-                }
-            }
-        }
-    }
-    if let &ContactEvent::Stopped(collider1, collider2) = event {
-        if world.contact_pair(collider1, collider2, true).is_some() {
-            let pair = world.contact_pair(collider1, collider2, false).unwrap();
-            let contact = pair.3.deepest_contact().unwrap();
-            let co1 = world.collision_object(collider1).unwrap();
-            let co2 = world.collision_object(collider2).unwrap();
-            for (_id, (_player, can_move)) in
-                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
-            {
-                if co1.data().collision_type == CollisionType::Player {
-                    let normal = contact.contact.normal.into_inner().data;
-                    //println!("Stop Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
-                    let normals = [normal[0] as f32, normal[1] as f32];
-                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
-                        can_move.left = true
-                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
-                        can_move.right = true;
-                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
-                        can_move.up = true;
-                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
-                        can_move.down = true;
-                    }
-                // println!(
-                //     "Handling event...{} Can i move? {}",
-                //     co2.data().name,
-                //     format!("{:#?}", can_move)
-                // );
-                } else if co2.data().collision_type == CollisionType::Player {
-                    let normal = (-contact.contact.normal).into_inner().data;
-                    //println!("Stop Contact World1 {:?}, World 2 {:?}", contact.contact.world1, contact.contact.world2);
-                    let normals = [normal[0] as f32, normal[1] as f32];
-                    if normals[0] <= -0.0 && normal[1] <= 0.0 {
-                        can_move.left = true
-                    } else if normals[0] > 0.0 && normal[1] >= 0.0 {
-                        can_move.right = true;
-                    } else if normals[0] <= -0.0 && normal[1] <= -0.0 {
-                        can_move.up = true;
-                    } else if normals[0] <= 0.0 && normal[1] >= 0.0 {
-                        can_move.down = true;
-                    }
-
-                    // println!(
-                    //     "Handling event...{} Can i move? {}",
-                    //     co1.data().name,
-                    //     format!("{:#?}", can_move)
-                    // );
-                }
-            }
-        } else {
-            for (_id, (_player, can_move)) in
-                ecs_world.query::<(&Player, &mut CanMove)>().iter().take(1)
-            {
-                if !can_move.up {
-                    can_move.up = true
-                }
-                if !can_move.down {
-                    can_move.down = true
-                }
-                if !can_move.left {
-                    can_move.left = true
-                }
-                if !can_move.right {
-                    can_move.right = true
-                }
-            }
-        }
-    }
-}
 
 // x width for char = 75
 // y height for char = 144
@@ -326,6 +124,113 @@ fn get_layer_size(lyr: tiled::Layer) -> Vec2<u32> {
     }
     return Vec2::new(size_x, size_y);
 }
+
+fn create_map_bounds(
+    lyr: &tiled::Layer,
+    colliders: &mut DefaultColliderSet<f32>,
+    bodies: &mut DefaultBodySet<f32>,
+) {
+    let mut tile_group = CollisionGroups::new();
+    tile_group.set_membership(&[3]);
+    tile_group.set_whitelist(&[1]);
+    let y_max = lyr.tiles.len() - 1;
+    for (y, row) in lyr.tiles.iter().enumerate().clone() {
+        let x_max = row.len() - 1;
+        for (x, &tile) in row.iter().enumerate() {
+            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(16.0 - 0.01)));
+            if tile.gid == 0 {
+                let shape_pos = Isometry2::new(
+                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    nalgebra::zero(),
+                );
+                let world_body = RigidBodyDesc::new()
+                    .position(shape_pos)
+                    .gravity_enabled(false)
+                    .status(BodyStatus::Static)
+                    .build();
+
+                let world_body_handle = bodies.insert(world_body);
+
+                let world_body_collider =
+                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
+
+                colliders.insert(world_body_collider);
+                continue;
+            }
+            if y == 0 {
+                let shape_pos = Isometry2::new(
+                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) - 16.0),
+                    nalgebra::zero(),
+                );
+                let world_body = RigidBodyDesc::new()
+                    .position(shape_pos)
+                    .gravity_enabled(false)
+                    .status(BodyStatus::Static)
+                    .build();
+
+                let world_body_handle = bodies.insert(world_body);
+
+                let world_body_collider =
+                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
+
+                colliders.insert(world_body_collider);
+            } else if y == y_max {
+                let shape_pos = Isometry2::new(
+                    Vector2::new((x as f32 * 32.0) + 16.0, ((y as f32 + 1.0) * 32.0) + 16.0),
+                    nalgebra::zero(),
+                );
+                let world_body = RigidBodyDesc::new()
+                    .position(shape_pos)
+                    .gravity_enabled(false)
+                    .status(BodyStatus::Static)
+                    .build();
+
+                let world_body_handle = bodies.insert(world_body);
+
+                let world_body_collider =
+                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
+
+                colliders.insert(world_body_collider);
+            }
+
+            if x == 0 {
+                let shape_pos = Isometry2::new(
+                    Vector2::new((x as f32 * 32.0) - 16.0, (y as f32 * 32.0) + 16.0),
+                    nalgebra::zero(),
+                );
+                let world_body = RigidBodyDesc::new()
+                    .position(shape_pos)
+                    .gravity_enabled(false)
+                    .status(BodyStatus::Static)
+                    .build();
+
+                let world_body_handle = bodies.insert(world_body);
+
+                let world_body_collider =
+                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
+
+                colliders.insert(world_body_collider);
+            } else if x == x_max {
+                let shape_pos = Isometry2::new(
+                    Vector2::new(((x as f32 + 1.0) * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    nalgebra::zero(),
+                );
+                let world_body = RigidBodyDesc::new()
+                    .position(shape_pos)
+                    .gravity_enabled(false)
+                    .status(BodyStatus::Static)
+                    .build();
+
+                let world_body_handle = bodies.insert(world_body);
+
+                let world_body_collider =
+                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
+
+                colliders.insert(world_body_collider);
+            }
+        }
+    }
+}
 fn create_physics_world(
     lyrs: &Vec<tiled::Layer>,
     sprite_map: &HashMap<u32, Sprite>,
@@ -335,8 +240,6 @@ fn create_physics_world(
     let mut tile_group = CollisionGroups::new();
     tile_group.set_membership(&[3]);
     tile_group.set_whitelist(&[1]);
-    let shape_data = CollisionObjectData::new("world obj", CollisionType::World);
-    let contacts_query = GeometricQueryType::Contacts(0.0, 0.0);
     for lyr in lyrs {
         for (y, row) in lyr.tiles.iter().enumerate().clone() {
             for (x, &tile) in row.iter().enumerate() {
@@ -358,34 +261,51 @@ fn create_physics_world(
                 if sprite.collision_objects.is_some() {
                     let objs = sprite.collision_objects.as_ref().unwrap();
                     let obj = &objs[0];
-                    let mut points: Vec<Point2<f32>> = Vec::new();
-                    let pts: Option<&Vec<_>> = match &obj.shape {
-                        ObjectShape::Polygon { points } => Some(points),
+                    let dimensions: Option<(&f32, &f32)> = match &obj.shape {
+                        ObjectShape::Rect { width, height } => Some((width, height)),
                         _ => None,
                     };
+                    let mut height: f32 = 0.0;
+                    let mut width: f32 = 0.0;
 
-                    if pts.is_some() {
-                        for point in pts.unwrap() {
-                            points.push(Point2::new(point.0, point.1))
-                        }
+                    if dimensions.is_some() {
+                        width = dimensions.unwrap().0.clone();
+                        height = dimensions.unwrap().1.clone();
+
+                        //println!("Points: {:?}", points);
                     } //ConvexPolygon::try_new(points).unwrap()
-                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(8.0, 8.0)));
-                    let shape_pos =
-                        Isometry2::new(Vector2::new(x as f32  * 32.0, y as f32  * 32.0), rotation);
+                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
+
+                    let shape_pos = Isometry2::new(
+                        Vector2::new((x as f32 * 32.0) + 12.0, y as f32 * 32.0),
+                        nalgebra::zero(),
+                    );
+                    let mut translator: (f32, f32) = (0.0, 0.0);
+                    match rotation {
+                        0.0 => translator = (obj.x, obj.y),
+                        90.0 => translator = (obj.y, obj.x),
+                        -90.0 => translator = (obj.y, -obj.x),
+                        180.0 => translator = (-obj.x, obj.y),
+                        _ => panic!("Invalid Rotation: {:?}", rotation),
+                    }
                     let world_body = RigidBodyDesc::new()
-                        .position(shape_pos)
+                        .translation(Vector2::new(
+                            ((x as f32 * 32.0) + translator.0) + 16.0,
+                            ((y as f32 * 32.0) + translator.1) + 16.0,
+                        ))
+                        .rotation(nalgebra::zero())
                         .gravity_enabled(false)
                         .status(BodyStatus::Static)
                         .build();
 
                     let world_body_handle = bodies.insert(world_body);
 
-                    let world_body_collider =
-                        ColliderDesc::new(shape).build(BodyPartHandle(world_body_handle, 0));
+                    let world_body_collider = ColliderDesc::new(shape)
+                        .rotation(rotation.to_radians())
+                        .build(BodyPartHandle(world_body_handle, 0));
 
                     colliders.insert(world_body_collider);
                 }
-                //println!("{:?}", &sprite.texture);
             }
         }
     }
@@ -404,6 +324,14 @@ fn draw_layer(
 
             let gid = tile.gid;
             let sprite = sprite_map.get(&gid).unwrap();
+            let mut scale = 1.0;
+            let mut origin = Vec2::new(8.0, 8.0);
+            if sprite.width == 16.0 && sprite.height == 16.0 {
+                scale = 2.0;
+                origin.x = 8.0;
+                origin.y = 8.0;
+            }
+
             let rect: Rectangle;
             let texture = texture_map.get(&sprite.texture).unwrap();
             let mut rotation: f32 = 0.0;
@@ -421,13 +349,15 @@ fn draw_layer(
                 ctx,
                 texture,
                 DrawParams::new()
-                    .position(Vec2::new(x as f32 * 32.0, y as f32 * 32.0))
-                    .origin(Vec2::new(8.0, 8.0))
+                    .position(Vec2::new(
+                        (x as f32 * 32.0) + 16.0,
+                        (y as f32 * 32.0) + 16.0,
+                    ))
+                    .origin(origin)
                     .scale(Vec2::new(SCALE, SCALE))
                     .clip(sprite.rect)
                     .rotation(rotation.to_radians()),
             );
-            //println!("{:?}", &sprite.texture);
         }
     }
 }
@@ -470,7 +400,7 @@ fn player_update(
     )>() {
         let player_body = body_set.rigid_body_mut(*handle).unwrap();
         if input::is_key_down(ctx, Key::W) {
-            player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED * 100.0));
+            player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED));
             anim.direction = Direction::Up;
             anim_map
                 .get_mut(&AnimationKey::PlayerUp)
@@ -478,7 +408,7 @@ fn player_update(
                 .advance(ctx);
         }
         if input::is_key_down(ctx, Key::S) {
-            player_body.set_linear_velocity(Vector2::new(0.0, PLAYER_SPEED * 100.0));
+            player_body.set_linear_velocity(Vector2::new(0.0, PLAYER_SPEED));
             anim.direction = Direction::Down;
             anim_map
                 .get_mut(&AnimationKey::PlayerDown)
@@ -486,7 +416,7 @@ fn player_update(
                 .advance(ctx);
         }
         if input::is_key_down(ctx, Key::D) {
-            player_body.set_linear_velocity(Vector2::new(PLAYER_SPEED * 100.0, 0.0));
+            player_body.set_linear_velocity(Vector2::new(PLAYER_SPEED, 0.0));
             anim.direction = Direction::Right;
             anim_map
                 .get_mut(&AnimationKey::PlayerRight)
@@ -494,7 +424,7 @@ fn player_update(
                 .advance(ctx);
         }
         if input::is_key_down(ctx, Key::A) {
-            player_body.set_linear_velocity(Vector2::new(-PLAYER_SPEED * 100.0, 0.0));
+            player_body.set_linear_velocity(Vector2::new(-PLAYER_SPEED, 0.0));
             anim.direction = Direction::Left;
             anim_map
                 .get_mut(&AnimationKey::PlayerLeft)
@@ -513,10 +443,11 @@ impl GameState {
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
-        let player_sheet = Texture::from_file_data(ctx, include_bytes!("../resources/chara5.png"))?;
+        let player_sheet =
+            Texture::from_file_data(ctx, include_bytes!("../resources/Viking-Sheet.png"))?;
         let up = Animation::new(
             player_sheet.clone(),
-            Rectangle::row(0.0, 108.0, CHAR_WIDTH, CHAR_HEIGHT)
+            Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
@@ -530,14 +461,14 @@ impl GameState {
         );
         let left = Animation::new(
             player_sheet.clone(),
-            Rectangle::row(0.0, 36.0, CHAR_WIDTH, CHAR_HEIGHT)
+            Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let right = Animation::new(
             player_sheet.clone(),
-            Rectangle::row(0.0, 72.0, CHAR_WIDTH, CHAR_HEIGHT)
+            Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
@@ -548,10 +479,9 @@ impl GameState {
         anims.insert(AnimationKey::PlayerDown, down);
         anims.insert(AnimationKey::PlayerLeft, left);
         anims.insert(AnimationKey::PlayerRight, right);
-        //println!("{:?}", file_to_texture.get(&"terrain").unwrap());
 
-        let tiled_data = parse(&include_bytes!("../resources/map/map2.tmx")[..]).unwrap();
-
+        let tiled_data = parse(&include_bytes!("../resources/map/map3.tmx")[..]).unwrap();
+        fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
         let tilesets = tiled_data.tilesets;
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
         let mut gid = tilesets[0].first_gid as u32;
@@ -564,8 +494,26 @@ impl GameState {
             let tileset_sprite_columns = tileset_width / tile_width as i32;
             let tileset_sprite_rows = tileset_height / tile_height as i32;
             let mut object_map: HashMap<u32, Vec<tiled::Object>> = HashMap::new();
+            let mut id_to_rect: HashMap<u32, Rectangle> = HashMap::new();
+            let mut anim_map: HashMap<u32, Animation> = HashMap::new();
             for tile in map_tileset.tiles {
-                object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
+                if tile.objectgroup.is_some() {
+                    object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
+                }
+                // if tile.animation.is_some() && id_to_rect.is_empty() {
+                //     let mut id = 0;
+                //     for x in 0..tileset_sprite_rows {
+                //         for y in 0..tileset_sprite_columns {
+                //             let sprite_w = tile_width as f32;
+                //             let sprite_h = tile_height as f32;
+                //             let pos_x = (x * tile_width) as f32;
+                //             let pos_y = (y * tile_height) as f32;
+                //             Rectangle::new(pos_y, pos_x, sprite_w, sprite_h)
+                //             tile_sprites.entry(gid).or_insert(sprite);
+                //             id += 1;
+                //         }
+                //     }
+                // }
             }
             let mut id = 0;
             for x in 0..tileset_sprite_rows {
@@ -576,6 +524,8 @@ impl GameState {
                     let pos_y = (y * tile_height) as f32;
                     let objects = object_map.remove(&id).clone();
                     let sprite = Sprite {
+                        width: sprite_w,
+                        height: sprite_h,
                         rect: Rectangle::new(pos_y, pos_x, sprite_w, sprite_h),
                         pos: Vec2::new(pos_x, pos_y),
                         texture: map_tileset.name.clone(),
@@ -589,54 +539,10 @@ impl GameState {
             }
         }
 
-        let size = get_layer_size(tiled_data.layers.clone().remove(0));
-
-        let plane_left_shape = ShapeHandle::new(Plane::new(Vector2::x_axis()));
-        let plane_bottom_shape = ShapeHandle::new(Plane::new(-Vector2::y_axis()));
-        let plane_right_shape = ShapeHandle::new(Plane::new(-Vector2::x_axis()));
-        let plane_top_shape = ShapeHandle::new(Plane::new(Vector2::y_axis()));
-
-        let player_shape = ShapeHandle::new(Ball::new(12.5));
+        let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(10.5, 10.0)));
 
         let player_pos = Isometry2::new(Vector2::new(800.0, 800.0), nalgebra::zero());
 
-        let plane_pos = [
-            //left 
-            Isometry2::new(Vector2::new(0.0, 0.0), nalgebra::zero()),
-            //bottom
-            Isometry2::new(
-                Vector2::new(0.0, 1600.0 ),
-                nalgebra::zero(),
-            ),
-            //right
-            Isometry2::new(
-                Vector2::new(1600.0, 0.0),
-                nalgebra::zero(),
-            ),
-            //top
-            Isometry2::new(
-                Vector2::new(1600.0, 0.0),
-                nalgebra::zero(),
-            ),
-        ];
-
-        let mut player_group = CollisionGroups::new();
-        player_group.set_membership(&[1]);
-
-        let mut plane_group = CollisionGroups::new();
-        plane_group.set_membership(&[2]);
-        plane_group.set_whitelist(&[1]);
-
-        let plane_data = [
-            CollisionObjectData::new("left", CollisionType::Left),
-            CollisionObjectData::new("bottom", CollisionType::Bottom),
-            CollisionObjectData::new("right", CollisionType::Right),
-            CollisionObjectData::new("top", CollisionType::Top),
-        ];
-
-        let player_data = CollisionObjectData::new("player", CollisionType::Player);
-
-        let mut physics_world: CollisionWorld<f32, CollisionObjectData> = CollisionWorld::new(0.00);
         let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
         let mechanical_world: DefaultMechanicalWorld<f32> =
             DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
@@ -644,64 +550,24 @@ impl GameState {
         let mut colliders = DefaultColliderSet::new();
         let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
-
+        let layers = tiled_data.layers;
+        create_map_bounds(&layers[0], &mut colliders, &mut bodies);
         let player_body = RigidBodyDesc::new()
             .position(player_pos)
             .gravity_enabled(false)
             .status(BodyStatus::Dynamic)
             .mass(1.2)
             .build();
-
-        let plane_left = RigidBodyDesc::new()
-            .position(plane_pos[0])
-            .gravity_enabled(false)
-            .status(BodyStatus::Static)
-            .build();
-        let plane_bottom = RigidBodyDesc::new()
-            .position(plane_pos[1])
-            .gravity_enabled(false)
-            .status(BodyStatus::Static)
-            .build();
-        let plane_right = RigidBodyDesc::new()
-            .position(plane_pos[2])
-            .gravity_enabled(false)
-            .status(BodyStatus::Static)
-            .build();
-        let plane_top = RigidBodyDesc::new()
-            .position(plane_pos[3])
-            .gravity_enabled(false)
-            .status(BodyStatus::Static)
-            .build();
-
-        let plane_left_handle = bodies.insert(plane_left);
-        let plane_right_handle = bodies.insert(plane_right);
-        let plane_bottom_handle = bodies.insert(plane_bottom);
-        let plane_top_handle = bodies.insert(plane_top);
         let player_handle = bodies.insert(player_body);
 
         new_player(ctx, &mut world, player_handle.clone());
 
-        let plane_left_collider =
-            ColliderDesc::new(plane_left_shape).build(BodyPartHandle(plane_left_handle, 0));
-        let plane_right_collider =
-            ColliderDesc::new(plane_right_shape).build(BodyPartHandle(plane_right_handle, 0));
-        let plane_bottom_collider =
-            ColliderDesc::new(plane_bottom_shape).build(BodyPartHandle(plane_bottom_handle, 0));
-        let plane_top_collider =
-            ColliderDesc::new(plane_top_shape).build(BodyPartHandle(plane_top_handle, 0));
-
         let player_collider =
             ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
 
-        colliders.insert(plane_left_collider);
-        colliders.insert(plane_right_collider);
-        colliders.insert(plane_bottom_collider);
-        colliders.insert(plane_top_collider);
         colliders.insert(player_collider);
 
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
-
-        let layers = tiled_data.layers;
 
         create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
@@ -730,9 +596,10 @@ impl State for GameState {
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
+        let bg_layer_2: tiled::Layer = layers.remove(0);
 
         draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
-
+        draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
         for (_id, (_camera, anim, _player, handle)) in
             &mut self
                 .world
@@ -747,20 +614,18 @@ impl State for GameState {
             let animation = self.player_anim_map.get(&key).unwrap();
             let player_body = self.body_set.rigid_body(*handle).unwrap();
             let player_pos = Vec2::new(
-                player_body.position().translation.vector.x ,
-                player_body.position().translation.vector.y ,
+                player_body.position().translation.vector.x,
+                player_body.position().translation.vector.y,
             );
             graphics::draw(
                 ctx,
                 animation,
                 DrawParams::new()
                     .position(player_pos)
-                    .origin(Vec2::new(12.5, 36.0))
+                    .origin(Vec2::new(9.5, 27.0))
                     .scale(Vec2::new(SCALE, SCALE)),
             );
         }
-
-        //graphics::draw(ctx, &self.player, DrawParams::default());
 
         for x in layers {
             draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
@@ -792,10 +657,9 @@ impl State for GameState {
             let player_body = self.body_set.rigid_body_mut(*handle).unwrap();
             player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
             camera.position = Vec2::new(
-                player_body.position().translation.vector.x ,
-                player_body.position().translation.vector.y  ,
+                player_body.position().translation.vector.x,
+                player_body.position().translation.vector.y,
             );
-            //println!("{:?} Physical Pos", camera.position );
             camera.update();
         }
 
@@ -814,9 +678,6 @@ impl State for GameState {
 }
 
 fn main() -> tetra::Result {
-    // #[derive(Debug)]
-    // println!("{:#?}", tiled_data);
-    //fs::write("foo.txt", format!("{:#?}", tiled_data)).unwrap();
     ContextBuilder::new("Neon", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
         .resizable(true)
         .quit_on_escape(true)
