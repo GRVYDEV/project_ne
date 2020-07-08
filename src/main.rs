@@ -1,31 +1,13 @@
-use hecs::{Entity, World};
-use nalgebra::base::{Unit, Vector2};
-use nalgebra::geometry::{Isometry2, Point2, Translation2};
-use nalgebra::Vector3;
-use ncollide2d::pipeline::{
-    object, CollisionGroups, CollisionWorld, ContactEvent, GeometricQueryType, ProximityEvent,
-};
-use ncollide2d::query::Proximity;
-use ncollide2d::shape::{Ball, ConvexPolygon, Cuboid, Plane, Polyline, ShapeHandle};
-use nphysics2d::force_generator::DefaultForceGeneratorSet;
-use nphysics2d::joint::DefaultJointConstraintSet;
-use nphysics2d::math::{Force, ForceType, Velocity};
-use nphysics2d::object::{
-    BodyPartHandle, BodyStatus, Collider, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
-    DefaultColliderSet, RigidBody, RigidBodyDesc,
-};
-use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
-use std::collections::HashMap;
-use std::fs;
-use std::time::Duration;
-use tetra::graphics::animation::Animation;
-use tetra::graphics::{self, Camera, Color, DrawParams, Rectangle, Texture};
-use tetra::input::{self, Key};
-use tetra::math::Vec2;
-use tetra::{Context, ContextBuilder, Event, State};
-use tiled::parse;
-use tiled::Layer;
-use tiled::ObjectShape;
+mod components;
+use components::*;
+mod prelude;
+use prelude::*;
+mod world_gen;
+use world_gen::*;
+mod player;
+use player::*;
+mod npc;
+use npc::*;
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -35,7 +17,7 @@ const SCALE: f32 = 2.0;
 const CHAR_HEIGHT: f32 = 32.0;
 const CHAR_WIDTH: f32 = 19.0;
 
-const PLAYER_SPEED: f32 = 3.0 * 75.0;
+
 
 const ANIM_SPEED: f64 = 0.2;
 
@@ -54,52 +36,7 @@ const TILESETS: &[(&str, &[u8])] = &[
     ),
 ];
 
-struct LastDirection(Direction);
-struct Character(usize, usize);
 
-struct GameState {
-    world: World,
-    sprite_map: HashMap<u32, Sprite>,
-    layers: Vec<Layer>,
-    texture_map: HashMap<String, Texture>,
-    player_anim_map: HashMap<AnimationKey, Animation>,
-    mechanical_world: DefaultMechanicalWorld<f32>,
-    geometrical_world: DefaultGeometricalWorld<f32>,
-    body_set: DefaultBodySet<f32>,
-    collider_set: DefaultColliderSet<f32>,
-    constraint_set: DefaultJointConstraintSet<f32>,
-    force_gen_set: DefaultForceGeneratorSet<f32>,
-    characters: HashMap<usize, Texture>,
-}
-#[derive(Debug)]
-struct Sprite {
-    width: f32,
-    height: f32,
-    rect: Rectangle,
-    pos: Vec2<f32>,
-    texture: String,
-    collision_objects: Option<Vec<tiled::Object>>,
-    //animation: Option<Animation>,
-}
-#[derive(PartialEq, Eq, Hash)]
-pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-#[derive(PartialEq, Eq, Hash)]
-pub enum AnimationKey {
-    PlayerUp,
-    PlayerDown,
-    PlayerLeft,
-    PlayerRight,
-}
-struct EntityAnimation {
-    direction: Direction,
-}
-
-struct Player;
 
 // x width for char = 75
 // y height for char = 144
@@ -123,195 +60,7 @@ fn get_layer_size(lyr: tiled::Layer) -> Vec2<u32> {
     return Vec2::new(size_x, size_y);
 }
 
-fn create_map_bounds(
-    lyr: &tiled::Layer,
-    colliders: &mut DefaultColliderSet<f32>,
-    bodies: &mut DefaultBodySet<f32>,
-) {
-    let mut tile_group = CollisionGroups::new();
-    tile_group.set_membership(&[3]);
-    tile_group.set_whitelist(&[1]);
-    let y_max = lyr.tiles.len() - 1;
-    for (y, row) in lyr.tiles.iter().enumerate().clone() {
-        let x_max = row.len() - 1;
-        for (x, &tile) in row.iter().enumerate() {
-            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(16.0 - 0.01)));
-            if tile.gid == 0 {
-                let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
-                    nalgebra::zero(),
-                );
-                let world_body = RigidBodyDesc::new()
-                    .position(shape_pos)
-                    .gravity_enabled(false)
-                    .status(BodyStatus::Static)
-                    .build();
 
-                let world_body_handle = bodies.insert(world_body);
-
-                let world_body_collider =
-                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
-
-                colliders.insert(world_body_collider);
-                continue;
-            }
-            if y == 0 {
-                let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) - 16.0),
-                    nalgebra::zero(),
-                );
-                let world_body = RigidBodyDesc::new()
-                    .position(shape_pos)
-                    .gravity_enabled(false)
-                    .status(BodyStatus::Static)
-                    .build();
-
-                let world_body_handle = bodies.insert(world_body);
-
-                let world_body_collider =
-                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
-
-                colliders.insert(world_body_collider);
-            } else if y == y_max {
-                let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, ((y as f32 + 1.0) * 32.0) + 16.0),
-                    nalgebra::zero(),
-                );
-                let world_body = RigidBodyDesc::new()
-                    .position(shape_pos)
-                    .gravity_enabled(false)
-                    .status(BodyStatus::Static)
-                    .build();
-
-                let world_body_handle = bodies.insert(world_body);
-
-                let world_body_collider =
-                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
-
-                colliders.insert(world_body_collider);
-            }
-
-            if x == 0 {
-                let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) - 16.0, (y as f32 * 32.0) + 16.0),
-                    nalgebra::zero(),
-                );
-                let world_body = RigidBodyDesc::new()
-                    .position(shape_pos)
-                    .gravity_enabled(false)
-                    .status(BodyStatus::Static)
-                    .build();
-
-                let world_body_handle = bodies.insert(world_body);
-
-                let world_body_collider =
-                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
-
-                colliders.insert(world_body_collider);
-            } else if x == x_max {
-                let shape_pos = Isometry2::new(
-                    Vector2::new(((x as f32 + 1.0) * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
-                    nalgebra::zero(),
-                );
-                let world_body = RigidBodyDesc::new()
-                    .position(shape_pos)
-                    .gravity_enabled(false)
-                    .status(BodyStatus::Static)
-                    .build();
-
-                let world_body_handle = bodies.insert(world_body);
-
-                let world_body_collider =
-                    ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
-
-                colliders.insert(world_body_collider);
-            }
-        }
-    }
-}
-fn create_physics_world(
-    lyrs: &Vec<tiled::Layer>,
-    sprite_map: &HashMap<u32, Sprite>,
-    colliders: &mut DefaultColliderSet<f32>,
-    bodies: &mut DefaultBodySet<f32>,
-) {
-    let mut tile_group = CollisionGroups::new();
-    tile_group.set_membership(&[3]);
-    tile_group.set_whitelist(&[1]);
-    for lyr in lyrs {
-        for (y, row) in lyr.tiles.iter().enumerate().clone() {
-            for (x, &tile) in row.iter().enumerate() {
-                if tile.gid == 0 {
-                    continue;
-                }
-                let gid = tile.gid;
-                let sprite = sprite_map.get(&gid).unwrap();
-                let mut rotation: f32 = 0.0;
-                if tile.flip_h {
-                    rotation += 180.0;
-                }
-                if tile.flip_d {
-                    rotation -= 90.0;
-                }
-                if tile.flip_v {
-                    rotation -= 0.0;
-                }
-                if sprite.collision_objects.is_some() {
-                    let objs = sprite.collision_objects.as_ref().unwrap();
-                    let obj = &objs[0];
-                    let dimensions: Option<(&f32, &f32)> = match &obj.shape {
-                        ObjectShape::Rect { width, height } => Some((width, height)),
-                        _ => None,
-                    };
-                    let mut height: f32 = 0.0;
-                    let mut width: f32 = 0.0;
-
-                    if dimensions.is_some() {
-                        width = dimensions.unwrap().0.clone();
-                        height = dimensions.unwrap().1.clone();
-
-                        //println!("Points: {:?}", points);
-                    } //ConvexPolygon::try_new(points).unwrap()
-                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
-
-                    let shape_pos = Isometry2::new(
-                        Vector2::new((x as f32 * 32.0) + 12.0, y as f32 * 32.0),
-                        nalgebra::zero(),
-                    );
-                    let mut translator: (f32, f32) = (0.0, 0.0);
-                    match rotation {
-                        0.0 => translator = (obj.x, obj.y),
-                        90.0 => translator = (obj.y, obj.x),
-                        -90.0 => translator = (obj.y, -obj.x),
-                        180.0 => translator = (-obj.x, obj.y),
-                        _ => panic!("Invalid Rotation: {:?}", rotation),
-                    }
-                    if sprite.width == 32.0 && sprite.height == 32.0 {
-                        translator.0 = translator.0 + translator.0;
-                        translator.1 = translator.1 + translator.1;
-                    }
-                    let world_body = RigidBodyDesc::new()
-                        .translation(Vector2::new(
-                            ((x as f32 * 32.0) + translator.0) + 16.0,
-                            ((y as f32 * 32.0) + translator.1) + 16.0,
-                        ))
-                        .rotation(nalgebra::zero())
-                        .gravity_enabled(false)
-                        .status(BodyStatus::Static)
-                        .build();
-
-                    let world_body_handle = bodies.insert(world_body);
-
-                    let world_body_collider = ColliderDesc::new(shape)
-                        .rotation(rotation.to_radians())
-                        .build(BodyPartHandle(world_body_handle, 0));
-
-                    colliders.insert(world_body_collider);
-                }
-            }
-        }
-    }
-}
 fn draw_layer(
     lyr: tiled::Layer,
     texture_map: &HashMap<String, Texture>,
@@ -326,15 +75,12 @@ fn draw_layer(
 
             let gid = tile.gid;
             let sprite = sprite_map.get(&gid).unwrap();
-            let mut scale = 1.0;
             let mut origin = Vec2::new(8.0, 8.0);
             if sprite.width == 16.0 && sprite.height == 16.0 {
-                scale = 2.0;
                 origin.x = 8.0;
                 origin.y = 8.0;
             }
 
-            let rect: Rectangle;
             let texture = texture_map.get(&sprite.texture).unwrap();
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
@@ -364,90 +110,8 @@ fn draw_layer(
     }
 }
 
-fn new_player(
-    ctx: &mut Context,
-    world: &mut World,
-    body: DefaultBodyHandle,
-    char_count: usize,
-) -> tetra::Result<Entity> {
-    let camera = Camera::with_window_size(ctx);
 
-    Ok(world.spawn((
-        Player,
-        EntityAnimation {
-            direction: Direction::Down,
-        },
-        camera,
-        body,
-        LastDirection(Direction::Down),
-        Character(0, char_count),
-    )))
-}
 
-fn player_update(
-    body_set: &mut DefaultBodySet<f32>,
-    ctx: &mut Context,
-    world: &mut World,
-    anim_map: &mut HashMap<AnimationKey, Animation>,
-) {
-    for (_id, (camera, anim, _player, handle, character)) in &mut world.query::<(
-        &mut Camera,
-        &mut EntityAnimation,
-        &Player,
-        &DefaultBodyHandle,
-        &mut Character,
-    )>() {
-        let player_body = body_set.rigid_body_mut(*handle).unwrap();
-        if input::is_key_pressed(ctx, Key::LeftBracket) {
-            if character.0 > 0 {
-                character.0 = character.0 - 1;
-            } else {
-                character.0 = character.1;
-            }
-        }
-        if input::is_key_pressed(ctx, Key::RightBracket) {
-            if character.0 < character.1 {
-                character.0 = character.0 + 1;
-            } else {
-                character.0 = 0;
-            }
-        }
-        if input::is_key_down(ctx, Key::W) {
-            player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED));
-            anim.direction = Direction::Up;
-            anim_map
-                .get_mut(&AnimationKey::PlayerUp)
-                .unwrap()
-                .advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::S) {
-            player_body.set_linear_velocity(Vector2::new(0.0, PLAYER_SPEED));
-            anim.direction = Direction::Down;
-            anim_map
-                .get_mut(&AnimationKey::PlayerDown)
-                .unwrap()
-                .advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::D) {
-            player_body.set_linear_velocity(Vector2::new(PLAYER_SPEED, 0.0));
-            anim.direction = Direction::Right;
-            anim_map
-                .get_mut(&AnimationKey::PlayerRight)
-                .unwrap()
-                .advance(ctx);
-        }
-        if input::is_key_down(ctx, Key::A) {
-            player_body.set_linear_velocity(Vector2::new(-PLAYER_SPEED, 0.0));
-            anim.direction = Direction::Left;
-            anim_map
-                .get_mut(&AnimationKey::PlayerLeft)
-                .unwrap()
-                .advance(ctx);
-        }
-    }
-}
-
-// fn spaw_npcs(count: u32, colliders: &mut DefaultColliderSet, bodies: &mut)
 
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
@@ -468,40 +132,26 @@ impl GameState {
         for x in 0..player_sheets.len() {
             character_map.insert(x, player_sheets.get(x).unwrap().clone());
         }
-        let up = Animation::new(
-            player_sheets[0].clone(),
-            Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let down = Animation::new(
-            player_sheets[0].clone(),
-            Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let left = Animation::new(
-            player_sheets[0].clone(),
-            Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
-        let right = Animation::new(
-            player_sheets[0].clone(),
-            Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
-                .take(3)
-                .collect(),
-            Duration::from_secs_f64(ANIM_SPEED),
-        );
 
-        let mut anims = HashMap::new();
-        anims.insert(AnimationKey::PlayerUp, up);
-        anims.insert(AnimationKey::PlayerDown, down);
-        anims.insert(AnimationKey::PlayerLeft, left);
-        anims.insert(AnimationKey::PlayerRight, right);
+        let anim_left: Vec<_> = Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_right: Vec<_> = Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_up: Vec<_> = Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_down: Vec<_> = Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+
+        let anim_data = AnimationData {
+            left: Anim::new(&anim_left, Duration::from_secs_f64(ANIM_SPEED)),
+            right: Anim::new(&anim_right, Duration::from_secs_f64(ANIM_SPEED)),
+            up: Anim::new(&anim_up, Duration::from_secs_f64(ANIM_SPEED)),
+            down: Anim::new(&anim_down, Duration::from_secs_f64(ANIM_SPEED)),
+        };
 
         let tiled_data = parse(&include_bytes!("../resources/map/map3.tmx")[..]).unwrap();
         //fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
@@ -588,8 +238,18 @@ impl GameState {
             &mut world,
             player_handle.clone(),
             character_map.len() - 1,
+            anim_data.clone(),
         )
         .expect("Failed to create Player");
+
+        spawn_npcs(
+            1000,
+            &mut colliders,
+            &mut bodies,
+            &mut world,
+            character_map.len() - 1,
+            anim_data.clone(),
+        );
 
         let player_collider =
             ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
@@ -603,7 +263,6 @@ impl GameState {
         Ok(GameState {
             characters: character_map,
             world,
-            player_anim_map: anims,
             sprite_map: tile_sprites,
             layers: layers,
             texture_map: file_to_texture,
@@ -620,7 +279,7 @@ impl GameState {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (_id, (camera, _player, character)) in self
+        for (_id, (camera, _player, _character)) in self
             .world
             .query::<(&Camera, &Player, &Character)>()
             .iter()
@@ -629,132 +288,81 @@ impl State for GameState {
             graphics::set_transform_matrix(ctx, camera.as_matrix());
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
-        for (_id, (_camera, anim, _player, handle, last_direction, character)) in
-            &mut self.world.query::<(
-                &Camera,
+
+        let mut layers = self.layers.clone();
+        let bg_layer: tiled::Layer = layers.remove(0);
+        let bg_layer_2: tiled::Layer = layers.remove(0);
+        draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
+        draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+        let mut render_vec: Vec<_> = self
+            .world
+            .query::<(
                 &EntityAnimation,
-                &Player,
                 &DefaultBodyHandle,
-                &mut LastDirection,
+                &AnimationData,
                 &Character,
             )>()
-        {
-            let mut layers = self.layers.clone();
-            let bg_layer: tiled::Layer = layers.remove(0);
-            let bg_layer_2: tiled::Layer = layers.remove(0);
-            draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
-            let key = match anim.direction {
-                Direction::Up => AnimationKey::PlayerUp,
-                Direction::Down => AnimationKey::PlayerDown,
-                Direction::Left => AnimationKey::PlayerLeft,
-                Direction::Right => AnimationKey::PlayerRight,
+            .iter()
+            .map(|(_, (&e, &d, a, &c))| (e, d, a.clone(), c))
+            .collect();
+        render_vec.sort_by(|a, b| {
+            let a = self
+                .body_set
+                .rigid_body(a.1)
+                .unwrap()
+                .position()
+                .translation
+                .vector
+                .y;
+            let b = self
+                .body_set
+                .rigid_body(b.1)
+                .unwrap()
+                .position()
+                .translation
+                .vector
+                .y;
+            a.partial_cmp(&b).unwrap()
+        });
+        for (anim, handle, anim_data, character) in render_vec {
+            let anim = match anim.direction {
+                Direction::Up => &anim_data.up,
+                Direction::Down => &anim_data.down,
+                Direction::Left => &anim_data.left,
+                Direction::Right => &anim_data.right,
             };
-            let animation = self.player_anim_map.get_mut(&key).unwrap();
-            animation.set_texture(self.characters.get(&character.0).unwrap().clone());
-            let player_body = self.body_set.rigid_body(*handle).unwrap();
-            let player_pos = Vec2::new(
-                player_body.position().translation.vector.x,
-                player_body.position().translation.vector.y,
+
+            let mut animation = Animation::new(
+                self.characters.get(&character.0).unwrap().clone(),
+                anim.frames.clone(),
+                anim.frame_duration,
             );
-            if key == AnimationKey::PlayerDown {
-                if last_direction.0 == Direction::Up {
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    for x in layers {
-                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    }
-                } else {
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    for x in layers {
-                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
-                    }
-                }
-                last_direction.0 = Direction::Down;
-            } else if key == AnimationKey::PlayerUp {
-                if last_direction.0 == Direction::Down {
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    for x in layers {
-                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
-                    }
-                } else {
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    for x in layers {
-                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    }
-                }
-                last_direction.0 = Direction::Up;
-            } else if key == AnimationKey::PlayerLeft || key == AnimationKey::PlayerRight {
-                if last_direction.0 == Direction::Down {
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    for x in layers {
-                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
-                    }
-                } else if last_direction.0 == Direction::Up {
-                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    graphics::draw(
-                        ctx,
-                        animation,
-                        DrawParams::new()
-                            .position(player_pos)
-                            .origin(Vec2::new(9.5, 27.0))
-                            .scale(Vec2::new(SCALE, SCALE)),
-                    );
-                    for x in layers {
-                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
-                    }
-                }
-            }
+            animation.set_current_frame_index(anim.frame_index);
+            let body = self.body_set.rigid_body(handle).unwrap();
+            let pos = Vec2::new(
+                body.position().translation.vector.x,
+                body.position().translation.vector.y,
+            );
+            graphics::draw(
+                ctx,
+                &animation,
+                DrawParams::new()
+                    .position(pos)
+                    .origin(Vec2::new(9.5, 27.0))
+                    .scale(Vec2::new(SCALE, SCALE)),
+            );
+        }
+
+        for x in layers {
+            draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
         }
 
         Ok(())
     }
 
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        player_update(
-            &mut self.body_set,
-            ctx,
-            &mut self.world,
-            &mut self.player_anim_map,
-        );
+        player_update(&mut self.body_set, ctx, &mut self.world);
+        npc_update(&mut self.body_set, &mut self.world, ctx);
         self.mechanical_world.step(
             &mut self.geometrical_world,
             &mut self.body_set,
@@ -776,6 +384,10 @@ impl State for GameState {
             );
             camera.update();
         }
+        // for(_id, (_npc, handle)) in &mut self.world.query::<(&NPC, &DefaultBodyHandle)>(){
+        //     let body = self.body_set.rigid_body_mut(*handle).unwrap();
+        //     body.set_linear_velocity(Vector2::new(0.0, 0.0));
+        // }
 
         Ok(())
     }
