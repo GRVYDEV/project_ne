@@ -55,7 +55,8 @@ const TILESETS: &[(&str, &[u8])] = &[
 ];
 
 struct LastDirection(Direction);
-struct Character(usize);
+struct Character(usize, usize);
+
 struct GameState {
     world: World,
     sprite_map: HashMap<u32, Sprite>,
@@ -68,7 +69,7 @@ struct GameState {
     collider_set: DefaultColliderSet<f32>,
     constraint_set: DefaultJointConstraintSet<f32>,
     force_gen_set: DefaultForceGeneratorSet<f32>,
-    character: usize
+    characters: HashMap<usize, Texture>,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -367,6 +368,7 @@ fn new_player(
     ctx: &mut Context,
     world: &mut World,
     body: DefaultBodyHandle,
+    char_count: usize,
 ) -> tetra::Result<Entity> {
     let camera = Camera::with_window_size(ctx);
 
@@ -378,7 +380,7 @@ fn new_player(
         camera,
         body,
         LastDirection(Direction::Down),
-        Character(0)
+        Character(0, char_count),
     )))
 }
 
@@ -387,21 +389,28 @@ fn player_update(
     ctx: &mut Context,
     world: &mut World,
     anim_map: &mut HashMap<AnimationKey, Animation>,
-    
 ) {
     for (_id, (camera, anim, _player, handle, character)) in &mut world.query::<(
         &mut Camera,
         &mut EntityAnimation,
         &Player,
         &DefaultBodyHandle,
-        &mut Character
+        &mut Character,
     )>() {
         let player_body = body_set.rigid_body_mut(*handle).unwrap();
-        if input::is_key_pressed(ctx, Key::LeftBracket){
-            character.0 = 0;
+        if input::is_key_pressed(ctx, Key::LeftBracket) {
+            if character.0 > 0 {
+                character.0 = character.0 - 1;
+            } else {
+                character.0 = character.1;
+            }
         }
-        if input::is_key_pressed(ctx, Key::LeftBracket){
-            character.0 = 1;
+        if input::is_key_pressed(ctx, Key::RightBracket) {
+            if character.0 < character.1 {
+                character.0 = character.0 + 1;
+            } else {
+                character.0 = 0;
+            }
         }
         if input::is_key_down(ctx, Key::W) {
             player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED));
@@ -438,6 +447,8 @@ fn player_update(
     }
 }
 
+// fn spaw_npcs(count: u32, colliders: &mut DefaultColliderSet, bodies: &mut)
+
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
         let mut world = World::new();
@@ -447,35 +458,39 @@ impl GameState {
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
-        let mut character = 0;
-            
         let player_sheets = [
             Texture::from_file_data(ctx, include_bytes!("../resources/Wizard-Sheet.png"))?,
             Texture::from_file_data(ctx, include_bytes!("../resources/Viking-Sheet.png"))?,
+            Texture::from_file_data(ctx, include_bytes!("../resources/Fire-Man-Sheet.png"))?,
         ];
+
+        let mut character_map = HashMap::new();
+        for x in 0..player_sheets.len() {
+            character_map.insert(x, player_sheets.get(x).unwrap().clone());
+        }
         let up = Animation::new(
-            player_sheets[character].clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let down = Animation::new(
-            player_sheets[character].clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let left = Animation::new(
-            player_sheets[character].clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let right = Animation::new(
-            player_sheets[character].clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
@@ -568,7 +583,13 @@ impl GameState {
             .build();
         let player_handle = bodies.insert(player_body);
 
-        new_player(ctx, &mut world, player_handle.clone());
+        new_player(
+            ctx,
+            &mut world,
+            player_handle.clone(),
+            character_map.len() - 1,
+        )
+        .expect("Failed to create Player");
 
         let player_collider =
             ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
@@ -580,7 +601,7 @@ impl GameState {
         create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
         Ok(GameState {
-            character: character,
+            characters: character_map,
             world,
             player_anim_map: anims,
             sprite_map: tile_sprites,
@@ -599,18 +620,25 @@ impl GameState {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (_id,( camera, _player, character)) in self.world.query::<(&Camera, &Player, &Character)>().iter().take(1) {
+        for (_id, (camera, _player, character)) in self
+            .world
+            .query::<(&Camera, &Player, &Character)>()
+            .iter()
+            .take(1)
+        {
             graphics::set_transform_matrix(ctx, camera.as_matrix());
-            self.character = character.0;
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
-        for (_id, (_camera, anim, _player, handle, last_direction)) in &mut self.world.query::<(
-            &Camera,
-            &EntityAnimation,
-            &Player,
-            &DefaultBodyHandle,
-            &mut LastDirection,
-        )>() {
+        for (_id, (_camera, anim, _player, handle, last_direction, character)) in
+            &mut self.world.query::<(
+                &Camera,
+                &EntityAnimation,
+                &Player,
+                &DefaultBodyHandle,
+                &mut LastDirection,
+                &Character,
+            )>()
+        {
             let mut layers = self.layers.clone();
             let bg_layer: tiled::Layer = layers.remove(0);
             let bg_layer_2: tiled::Layer = layers.remove(0);
@@ -621,7 +649,8 @@ impl State for GameState {
                 Direction::Left => AnimationKey::PlayerLeft,
                 Direction::Right => AnimationKey::PlayerRight,
             };
-            let animation = self.player_anim_map.get(&key).unwrap();
+            let animation = self.player_anim_map.get_mut(&key).unwrap();
+            animation.set_texture(self.characters.get(&character.0).unwrap().clone());
             let player_body = self.body_set.rigid_body(*handle).unwrap();
             let player_pos = Vec2::new(
                 player_body.position().translation.vector.x,
