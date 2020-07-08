@@ -23,7 +23,7 @@ features = ["sdl2_static_link", "sdl2_bundled"]
 opt-level = 3
 
 [package.metadata.bundle]
-name = "Project Neon"
+name = "Project_Neon"
 identifier = "com.grvy.project-neon"
 icon = ["./resources/app-icon/icon991-export.png"]
 short_description = "A dive into Rust game dev"

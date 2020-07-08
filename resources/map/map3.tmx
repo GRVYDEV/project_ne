@@ -68,6 +68,11 @@
  </tileset>
  <tileset firstgid="2731" name="chest-sheet" tilewidth="32" tileheight="32" tilecount="144" columns="12">
   <image source="../../../Desktop/Game Dev/AnimationSheets/chest-sheet.png" width="384" height="384"/>
+  <tile id="0">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="3" y="20" width="27" height="20"/>
+   </objectgroup>
+  </tile>
  </tileset>
  <layer id="1" name="Tile Layer 1" width="50" height="50">
   <data encoding="base64" compression="gzip">
@@ -76,7 +81,7 @@
  </layer>
  <layer id="3" name="Tile Layer 3" width="50" height="50">
   <data encoding="base64" compression="gzip">
-   H4sIAAAAAAAAE+3WMQrDMBAEwEPu8v9f5DVxDIn9kNhl7gHGlUESmoHtV8UeimBEz0ftBnDuVyL2zFFqN4H2tbCXqw4t9IPe1NzNSJsd6a1c+0wR38ya2ababQDu8cp7NmfemcVtAwBu5q8BAEAP/qP075UQJwAA
+   H4sIAAAAAAAAE+3WMQrDMBAEwMPq/P9f5DVxAk7ykNil7wWuBJLQDGy/KvZQBIztsbZuQE3/JeLInEvrJtC/HvZy16GHfjCalruZabMzvZV7e4n4ZL6ZX2ndBqCOZ96zLfPKvN02AKAyfw0AAEZwAW+VAVUQJwAA
   </data>
  </layer>
  <layer id="2" name="trees" width="50" height="50">

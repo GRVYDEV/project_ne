@@ -53,13 +53,9 @@ const TILESETS: &[(&str, &[u8])] = &[
         include_bytes!("../resources/map/tilesets/chest-sheet.png"),
     ),
 ];
-#[derive(Debug)]
-struct CanMove {
-    up: bool,
-    down: bool,
-    left: bool,
-    right: bool,
-}
+
+struct LastDirection(Direction);
+struct Character(usize, usize);
 
 struct GameState {
     world: World,
@@ -73,6 +69,7 @@ struct GameState {
     collider_set: DefaultColliderSet<f32>,
     constraint_set: DefaultJointConstraintSet<f32>,
     force_gen_set: DefaultForceGeneratorSet<f32>,
+    characters: HashMap<usize, Texture>,
 }
 #[derive(Debug)]
 struct Sprite {
@@ -84,6 +81,7 @@ struct Sprite {
     collision_objects: Option<Vec<tiled::Object>>,
     //animation: Option<Animation>,
 }
+#[derive(PartialEq, Eq, Hash)]
 pub enum Direction {
     Up,
     Down,
@@ -288,6 +286,10 @@ fn create_physics_world(
                         180.0 => translator = (-obj.x, obj.y),
                         _ => panic!("Invalid Rotation: {:?}", rotation),
                     }
+                    if sprite.width == 32.0 && sprite.height == 32.0 {
+                        translator.0 = translator.0 + translator.0;
+                        translator.1 = translator.1 + translator.1;
+                    }
                     let world_body = RigidBodyDesc::new()
                         .translation(Vector2::new(
                             ((x as f32 * 32.0) + translator.0) + 16.0,
@@ -366,6 +368,7 @@ fn new_player(
     ctx: &mut Context,
     world: &mut World,
     body: DefaultBodyHandle,
+    char_count: usize,
 ) -> tetra::Result<Entity> {
     let camera = Camera::with_window_size(ctx);
 
@@ -376,12 +379,8 @@ fn new_player(
         },
         camera,
         body,
-        CanMove {
-            up: true,
-            down: true,
-            left: true,
-            right: true,
-        },
+        LastDirection(Direction::Down),
+        Character(0, char_count),
     )))
 }
 
@@ -391,14 +390,28 @@ fn player_update(
     world: &mut World,
     anim_map: &mut HashMap<AnimationKey, Animation>,
 ) {
-    for (_id, (camera, anim, _player, can_move, handle)) in &mut world.query::<(
+    for (_id, (camera, anim, _player, handle, character)) in &mut world.query::<(
         &mut Camera,
         &mut EntityAnimation,
         &Player,
-        &CanMove,
         &DefaultBodyHandle,
+        &mut Character,
     )>() {
         let player_body = body_set.rigid_body_mut(*handle).unwrap();
+        if input::is_key_pressed(ctx, Key::LeftBracket) {
+            if character.0 > 0 {
+                character.0 = character.0 - 1;
+            } else {
+                character.0 = character.1;
+            }
+        }
+        if input::is_key_pressed(ctx, Key::RightBracket) {
+            if character.0 < character.1 {
+                character.0 = character.0 + 1;
+            } else {
+                character.0 = 0;
+            }
+        }
         if input::is_key_down(ctx, Key::W) {
             player_body.set_linear_velocity(Vector2::new(0.0, -PLAYER_SPEED));
             anim.direction = Direction::Up;
@@ -434,6 +447,8 @@ fn player_update(
     }
 }
 
+// fn spaw_npcs(count: u32, colliders: &mut DefaultColliderSet, bodies: &mut)
+
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
         let mut world = World::new();
@@ -443,31 +458,39 @@ impl GameState {
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
-        let player_sheet =
-            Texture::from_file_data(ctx, include_bytes!("../resources/Viking-Sheet.png"))?;
+        let player_sheets = [
+            Texture::from_file_data(ctx, include_bytes!("../resources/Wizard-Sheet.png"))?,
+            Texture::from_file_data(ctx, include_bytes!("../resources/Viking-Sheet.png"))?,
+            Texture::from_file_data(ctx, include_bytes!("../resources/Fire-Man-Sheet.png"))?,
+        ];
+
+        let mut character_map = HashMap::new();
+        for x in 0..player_sheets.len() {
+            character_map.insert(x, player_sheets.get(x).unwrap().clone());
+        }
         let up = Animation::new(
-            player_sheet.clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let down = Animation::new(
-            player_sheet.clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let left = Animation::new(
-            player_sheet.clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
             Duration::from_secs_f64(ANIM_SPEED),
         );
         let right = Animation::new(
-            player_sheet.clone(),
+            player_sheets[0].clone(),
             Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
                 .take(3)
                 .collect(),
@@ -481,7 +504,7 @@ impl GameState {
         anims.insert(AnimationKey::PlayerRight, right);
 
         let tiled_data = parse(&include_bytes!("../resources/map/map3.tmx")[..]).unwrap();
-        fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
+        //fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
         let tilesets = tiled_data.tilesets;
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
         let mut gid = tilesets[0].first_gid as u32;
@@ -560,7 +583,13 @@ impl GameState {
             .build();
         let player_handle = bodies.insert(player_body);
 
-        new_player(ctx, &mut world, player_handle.clone());
+        new_player(
+            ctx,
+            &mut world,
+            player_handle.clone(),
+            character_map.len() - 1,
+        )
+        .expect("Failed to create Player");
 
         let player_collider =
             ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
@@ -572,6 +601,7 @@ impl GameState {
         create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
         Ok(GameState {
+            characters: character_map,
             world,
             player_anim_map: anims,
             sprite_map: tile_sprites,
@@ -590,45 +620,129 @@ impl GameState {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
+        for (_id, (camera, _player, character)) in self
+            .world
+            .query::<(&Camera, &Player, &Character)>()
+            .iter()
+            .take(1)
+        {
             graphics::set_transform_matrix(ctx, camera.as_matrix());
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
-        let mut layers = self.layers.clone();
-        let bg_layer: tiled::Layer = layers.remove(0);
-        let bg_layer_2: tiled::Layer = layers.remove(0);
-
-        draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
-        draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
-        for (_id, (_camera, anim, _player, handle)) in
-            &mut self
-                .world
-                .query::<(&Camera, &EntityAnimation, &Player, &DefaultBodyHandle)>()
+        for (_id, (_camera, anim, _player, handle, last_direction, character)) in
+            &mut self.world.query::<(
+                &Camera,
+                &EntityAnimation,
+                &Player,
+                &DefaultBodyHandle,
+                &mut LastDirection,
+                &Character,
+            )>()
         {
+            let mut layers = self.layers.clone();
+            let bg_layer: tiled::Layer = layers.remove(0);
+            let bg_layer_2: tiled::Layer = layers.remove(0);
+            draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
             let key = match anim.direction {
                 Direction::Up => AnimationKey::PlayerUp,
                 Direction::Down => AnimationKey::PlayerDown,
                 Direction::Left => AnimationKey::PlayerLeft,
                 Direction::Right => AnimationKey::PlayerRight,
             };
-            let animation = self.player_anim_map.get(&key).unwrap();
+            let animation = self.player_anim_map.get_mut(&key).unwrap();
+            animation.set_texture(self.characters.get(&character.0).unwrap().clone());
             let player_body = self.body_set.rigid_body(*handle).unwrap();
             let player_pos = Vec2::new(
                 player_body.position().translation.vector.x,
                 player_body.position().translation.vector.y,
             );
-            graphics::draw(
-                ctx,
-                animation,
-                DrawParams::new()
-                    .position(player_pos)
-                    .origin(Vec2::new(9.5, 27.0))
-                    .scale(Vec2::new(SCALE, SCALE)),
-            );
-        }
-
-        for x in layers {
-            draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
+            if key == AnimationKey::PlayerDown {
+                if last_direction.0 == Direction::Up {
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    for x in layers {
+                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    }
+                } else {
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    for x in layers {
+                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
+                    }
+                }
+                last_direction.0 = Direction::Down;
+            } else if key == AnimationKey::PlayerUp {
+                if last_direction.0 == Direction::Down {
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    for x in layers {
+                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
+                    }
+                } else {
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    for x in layers {
+                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    }
+                }
+                last_direction.0 = Direction::Up;
+            } else if key == AnimationKey::PlayerLeft || key == AnimationKey::PlayerRight {
+                if last_direction.0 == Direction::Down {
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    for x in layers {
+                        draw_layer(x, &self.texture_map, &self.sprite_map, ctx);
+                    }
+                } else if last_direction.0 == Direction::Up {
+                    draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    graphics::draw(
+                        ctx,
+                        animation,
+                        DrawParams::new()
+                            .position(player_pos)
+                            .origin(Vec2::new(9.5, 27.0))
+                            .scale(Vec2::new(SCALE, SCALE)),
+                    );
+                    for x in layers {
+                        draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
+                    }
+                }
+            }
         }
 
         Ok(())
