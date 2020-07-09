@@ -1,5 +1,6 @@
-use crate::components::Sprite;
-
+use crate::components::{AnimationData, SpawnBounds, Sprite};
+use crate::npc::spawn_npcs;
+use crate::player::new_player;
 use nalgebra::base::Vector2;
 use nalgebra::geometry::Isometry2;
 
@@ -9,10 +10,14 @@ use ncollide2d::shape::{Cuboid, ShapeHandle};
 use nphysics2d::object::{
     BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodySet, DefaultColliderSet, RigidBodyDesc,
 };
+use tetra::Context;
+use hecs::World;
 
 use std::collections::HashMap;
 
 use tiled::ObjectShape;
+
+use tiled::PropertyValue::IntValue;
 
 pub fn create_map_bounds(
     lyr: &tiled::Layer,
@@ -26,10 +31,10 @@ pub fn create_map_bounds(
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         let x_max = row.len() - 1;
         for (x, &tile) in row.iter().enumerate() {
-            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(16.0 - 0.01)));
+            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(8.0 - 0.01)));
             if tile.gid == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -48,7 +53,7 @@ pub fn create_map_bounds(
             }
             if y == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) - 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, (y as f32 * 16.0) - 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -65,7 +70,7 @@ pub fn create_map_bounds(
                 colliders.insert(world_body_collider);
             } else if y == y_max {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, ((y as f32 + 1.0) * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, ((y as f32 + 1.0) * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -84,7 +89,7 @@ pub fn create_map_bounds(
 
             if x == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) - 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) - 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -101,7 +106,7 @@ pub fn create_map_bounds(
                 colliders.insert(world_body_collider);
             } else if x == x_max {
                 let shape_pos = Isometry2::new(
-                    Vector2::new(((x as f32 + 1.0) * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new(((x as f32 + 1.0) * 16.0) + 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -116,6 +121,35 @@ pub fn create_map_bounds(
                     ColliderDesc::new(shape.clone()).build(BodyPartHandle(world_body_handle, 0));
 
                 colliders.insert(world_body_collider);
+            }
+        }
+    }
+}
+pub fn spawn(
+    colliders: &mut DefaultColliderSet<f32>,
+    bodies: &mut DefaultBodySet<f32>,
+    world: &mut World,
+    sheet_lens: (&usize, &usize),
+    anim_data: &AnimationData,
+    map: &tiled::Map,
+    ctx: &mut Context
+) {
+    if !map.object_groups.is_empty() {
+        for object_group in &map.object_groups {
+            for object in &object_group.objects {
+                if object.obj_type == "NPCSpawn" {
+                    let bounds = SpawnBounds {
+                        x: (object.x, object.x + object.width),
+                        y: (object.y, object.y + object.height),
+                    };
+                    if let Some(IntValue(count)) = object.properties.get("count") {
+                        spawn_npcs(*count as u32, colliders, bodies, world, *sheet_lens.0, anim_data.clone(), &bounds);
+                    }
+                }
+                if object.obj_type == "PlayerSpawn" {
+                    let pos = Vector2::new(object.x + 8.0, object.y + 8.0);
+                    new_player(ctx, world, *sheet_lens.1, bodies, colliders, anim_data.clone(), &pos);
+                }
             }
         }
     }
@@ -161,23 +195,21 @@ pub fn create_physics_world(
                         width = dimensions.unwrap().0.clone();
                         height = dimensions.unwrap().1.clone();
                     }
-                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
+
+                    let shape =
+                        ShapeHandle::new(Cuboid::new(Vector2::new(width / 2.0, height / 2.0)));
                     let mut translator: (f32, f32);
                     match rotation {
                         0.0 => translator = (obj.x, obj.y),
-                        90.0 => translator = (obj.y, obj.x),
-                        -90.0 => translator = (obj.y, -obj.x),
-                        180.0 => translator = (-obj.x, obj.y),
-                        _ => panic!("Invalid Rotation: {:?}", rotation),
-                    }
-                    if sprite.width == 32.0 && sprite.height == 32.0 {
-                        translator.0 = translator.0 + translator.0;
-                        translator.1 = translator.1 + translator.1;
+                        90.0 => translator = (obj.y / 2.0, obj.x / 2.0),
+                        -90.0 => translator = (obj.y / 2.0, -obj.x / 2.0),
+                        180.0 => translator = (-obj.x / 2.0, -obj.y / 2.0),
+                        _ => translator = (obj.x, obj.y),
                     }
                     let world_body = RigidBodyDesc::new()
                         .translation(Vector2::new(
-                            ((x as f32 * 32.0) + translator.0) + 16.0,
-                            ((y as f32 * 32.0) + translator.1) + 16.0,
+                            (x as f32 * 16.0) + (width / 2.0) + translator.0,
+                            (y as f32 * 16.0) + (height / 2.0) + translator.1,
                         ))
                         .rotation(nalgebra::zero())
                         .gravity_enabled(false)

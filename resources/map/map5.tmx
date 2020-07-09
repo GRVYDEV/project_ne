@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.4" tiledversion="1.4.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="4">
+ <tileset firstgid="1" name="outdoors" tilewidth="16" tileheight="16" tilecount="1248" columns="52">
+  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/outside.png" width="832" height="384"/>
+  <tile id="757">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="8" y="-4" width="9" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="758">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="759">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="9" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="976">
+   <objectgroup draworder="index" id="2">
+    <object id="4" x="5" y="-4" width="11" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="977">
+   <objectgroup draworder="index" id="2">
+    <object id="3" x="0" y="-4" width="16" height="20"/>
+   </objectgroup>
+  </tile>
+  <tile id="978">
+   <objectgroup draworder="index" id="2">
+    <object id="2" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="979">
+   <objectgroup draworder="index" id="2">
+    <object id="2" template="../../../Documents/tree-right.tx" x="-1" y="-4"/>
+   </objectgroup>
+  </tile>
+  <tile id="982">
+   <objectgroup draworder="index" id="2">
+    <object id="3" x="11" y="-4" width="6" height="18"/>
+   </objectgroup>
+  </tile>
+  <tile id="983">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="984">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="17" height="28"/>
+   </objectgroup>
+  </tile>
+  <tile id="985">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="10" height="18"/>
+   </objectgroup>
+  </tile>
+ </tileset>
+ <tileset firstgid="1249" name="terrain_2" tilewidth="16" tileheight="16" tilecount="1482" columns="39">
+  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/terrain.png" width="624" height="608"/>
+  <tile id="586">
+   <objectgroup draworder="index" id="2">
+    <object id="6" name="Test" x="12" y="0" width="4" height="16"/>
+   </objectgroup>
+  </tile>
+ </tileset>
+ <tileset firstgid="2731" name="chest-sheet" tilewidth="32" tileheight="32" tilecount="144" columns="12">
+  <image source="../../../Desktop/Game Dev/AnimationSheets/chest-sheet.png" width="384" height="384"/>
+  <tile id="0">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="3" y="20" width="27" height="20"/>
+   </objectgroup>
+   <animation>
+    <frame tileid="0" duration="250"/>
+    <frame tileid="1" duration="250"/>
+    <frame tileid="2" duration="250"/>
+    <frame tileid="3" duration="250"/>
+   </animation>
+  </tile>
+  <tile id="3">
+   <animation>
+    <frame tileid="3" duration="250"/>
+    <frame tileid="2" duration="250"/>
+    <frame tileid="1" duration="250"/>
+    <frame tileid="0" duration="250"/>
+   </animation>
+  </tile>
+ </tileset>
+ <tileset firstgid="2875" name="castle" tilewidth="16" tileheight="16" tilecount="578" columns="34">
+  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/castle.png" width="544" height="272"/>
+  <tile id="273">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="275">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+    <object id="2" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="276">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="277">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="307">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="309">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="341">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="343">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="375">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="377">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="409">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="410">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="411">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="0" width="16" height="16"/>
+   </objectgroup>
+  </tile>
+  <tile id="478">
+   <objectgroup draworder="index" id="2">
+    <object id="1" x="0" y="-4" width="16" height="28"/>
+   </objectgroup>
+  </tile>
+ </tileset>
+ <layer id="1" name="Tile Layer 1" width="100" height="100">
+  <data encoding="base64" compression="gzip">
+   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
+  </data>
+ </layer>
+ <objectgroup id="5" name="Object Layer 1">
+  <object id="1" name="CastleSpawn" type="NPCSpawn" x="576.368" y="128.082" width="335.769" height="239.839">
+   <properties>
+    <property name="count" type="int" value="50"/>
+   </properties>
+  </object>
+  <object id="2" name="PlayerSpawn" type="PlayerSpawn" x="727" y="1173" width="16" height="16"/>
+  <object id="3" name="NPCSpawn2" type="NPCSpawn" x="1077.05" y="722.002" width="109.611" height="132.645">
+   <properties>
+    <property name="count" type="int" value="10"/>
+   </properties>
+  </object>
+ </objectgroup>
+ <layer id="3" name="Tile Layer 3" width="100" height="100">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAE+3YwQ2DMAwFUAtu7L9FpwEqlXYQ4Ign6IEGRaTvSf9u/RxsJQIAAAAAAAAAAAAA4JzHUHsCaNfaRWyZvas9CQB3Zp+U861LPQNQkr3yOx3ejzcDrvTqI5bMO/Ppa08DAPBfxry/psycebrFAAAAgEb5AwEAAAAAAAAAAAAAAAAAgLYd+fWbk0CcAAA=
+  </data>
+ </layer>
+ <layer id="2" name="trees" width="100" height="100">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAE+3Yx24TURhA4Ws7CW1Mf4tsUmynLXgPYJlO8VvQBWRHDxBA9A1vAKwgjf4S9DXtZG+PjW24I/l80lmONPp/j651Q5AkSZIkSZIkSZK0YTIJYYqmaYZmaY7mk9hv1p2OMffjdIJO0ik6TWfcxz/Rn6R3l+7RfXpAD+kRPW7wXL/7akk1Se8FvaRlWqFVWqP1Bs9V3UdLFpL0PtIn+kxf6Ct9o+8NnltwHy15kqS3vRjCDtpJu2g37aG9xcbPqvMGmPsgDdEwlahMlWLsN5Mkdbv9+RAO0MF87DfRhrPs4Ryddx+Z8JQ9PKPn7kNqyPOkc9Jm2eycPU86J22Wzc7Z86Rz0mbpnKW/5/ldW555FKiHeqmPNtWZUSdn6PldW4V5jNAojdE4TdSZUTMzbHZnniu1zTOPQ3SYjtBRqtaZUTMz9HffnmvMbZGu0w26SUttzNLffXteM7c39Jbe0Xv64Cyj6StwftNm2kJbaVsh9lt1r3Fmv0S36DbdoX119vEjF8JP+kW/KfAd5fyWohlg9oM0RMNUorL7iGaS2U/RNM3QLM25j2guMPuLdIku0xW66j6iWWb2K7RKa7ROr9xHPJzzOcpTgXqo1/9i0ZSYfZkqNEKjNOY+JEmKzjuQbPEOJFu8A8kW70CyxTuQjPEOJFO8A5EkSZIkSZIkSZIkSZIkSZIkSZIkSZKk/+sPgj/1u0CcAAA=
+  </data>
+ </layer>
+ <layer id="4" name="Tile Layer 4" width="100" height="100">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAE+3TwQkAIAwDwC7gEM7i/jv59SMILfVzN0EgSQQAAAAAAAAAvJvjdwJOSx+tsvv3n1rZ/fsPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwswHml+/pQJwAAA==
+  </data>
+ </layer>
+</map>
