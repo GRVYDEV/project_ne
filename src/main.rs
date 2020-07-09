@@ -12,12 +12,10 @@ use npc::*;
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
 
-const SCALE: f32 = 2.0;
+pub const SCALE: f32 = 2.0;
 
 const CHAR_HEIGHT: f32 = 32.0;
 const CHAR_WIDTH: f32 = 19.0;
-
-
 
 const ANIM_SPEED: f64 = 0.2;
 
@@ -36,7 +34,21 @@ const TILESETS: &[(&str, &[u8])] = &[
     ),
 ];
 
+const PLAYER_SHEETS: &[(&usize, &[u8])] = &[
+    (&0, include_bytes!("../resources/Wizard-Sheet.png")),
+    (&1, include_bytes!("../resources/Viking-Sheet.png")),
+    (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
+    (&3, include_bytes!("../resources/Red-Hair-Sheet.png"))
+];
 
+const NPC_SHEETS: &[(&usize, &[u8])] = &[
+    (&0, include_bytes!("../resources/Wizard-Sheet.png")),
+    (&1, include_bytes!("../resources/Viking-Sheet.png")),
+    (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
+    (&3, include_bytes!("../resources/NPC01-Sheet.png")),
+    (&4, include_bytes!("../resources/NPC02-Sheet.png")),
+    (&5, include_bytes!("../resources/Red-Hair-Sheet.png"))
+];
 
 // x width for char = 75
 // y height for char = 144
@@ -59,7 +71,6 @@ fn get_layer_size(lyr: tiled::Layer) -> Vec2<u32> {
     }
     return Vec2::new(size_x, size_y);
 }
-
 
 fn draw_layer(
     lyr: tiled::Layer,
@@ -90,7 +101,7 @@ fn draw_layer(
                 rotation -= 90.0;
             }
             if tile.flip_v {
-                rotation -= 0.0;
+                rotation += 0.0;
             }
 
             graphics::draw(
@@ -110,8 +121,40 @@ fn draw_layer(
     }
 }
 
+fn spawn_ecs_tiles(lyr: &tiled::Layer, world: &mut World, sprite_map: &HashMap<u32, Sprite>) {
+    for (y, row) in lyr.tiles.iter().enumerate().clone() {
+        for (x, &tile) in row.iter().enumerate() {
+            if tile.gid == 0 {
+                continue;
+            }
 
+            let gid = tile.gid;
 
+            let mut rotation: f32 = 0.0;
+            if tile.flip_h {
+                rotation += 180.0;
+            }
+            if tile.flip_d {
+                rotation -= 90.0;
+            }
+            if tile.flip_v {
+                rotation -= 0.0;
+            }
+
+            let pos = Vec2::new((x as f32 * 32.0), (y as f32 * 32.0) + 32.0);
+            world.spawn((Draw {
+                y: pos.y,
+                draw_type: DrawType::Tile,
+                player: None,
+                tile: Some(TileDrawData {
+                    pos,
+                    sprite: sprite_map.get(&gid).unwrap().clone(),
+                    rotation,
+                }),
+            },));
+        }
+    }
+}
 
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
@@ -122,15 +165,16 @@ impl GameState {
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
-        let player_sheets = [
-            Texture::from_file_data(ctx, include_bytes!("../resources/Wizard-Sheet.png"))?,
-            Texture::from_file_data(ctx, include_bytes!("../resources/Viking-Sheet.png"))?,
-            Texture::from_file_data(ctx, include_bytes!("../resources/Fire-Man-Sheet.png"))?,
-        ];
+        
 
+    
         let mut character_map = HashMap::new();
-        for x in 0..player_sheets.len() {
-            character_map.insert(x, player_sheets.get(x).unwrap().clone());
+        let mut npc_map = HashMap::new();
+        for (k,v) in PLAYER_SHEETS {
+            character_map.insert(**k, Texture::from_file_data(ctx, v)?);
+        }
+        for (k,v) in NPC_SHEETS {
+            npc_map.insert(**k, Texture::from_file_data(ctx, v)?);
         }
 
         let anim_left: Vec<_> = Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
@@ -212,10 +256,6 @@ impl GameState {
             }
         }
 
-        let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(10.5, 10.0)));
-
-        let player_pos = Isometry2::new(Vector2::new(800.0, 800.0), nalgebra::zero());
-
         let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
         let mechanical_world: DefaultMechanicalWorld<f32> =
             DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
@@ -225,36 +265,31 @@ impl GameState {
         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
         let layers = tiled_data.layers;
         create_map_bounds(&layers[0], &mut colliders, &mut bodies);
-        let player_body = RigidBodyDesc::new()
-            .position(player_pos)
-            .gravity_enabled(false)
-            .status(BodyStatus::Dynamic)
-            .mass(1.2)
-            .build();
-        let player_handle = bodies.insert(player_body);
 
         new_player(
             ctx,
             &mut world,
-            player_handle.clone(),
             character_map.len() - 1,
+            &mut bodies,
+            &mut colliders,
             anim_data.clone(),
         )
         .expect("Failed to create Player");
 
         spawn_npcs(
-            1000,
+            100,
             &mut colliders,
             &mut bodies,
             &mut world,
-            character_map.len() - 1,
+            npc_map.len() - 1,
             anim_data.clone(),
         );
 
-        let player_collider =
-            ColliderDesc::new(player_shape).build(BodyPartHandle(player_handle, 0));
+        let top_layers = &layers[1..];
 
-        colliders.insert(player_collider);
+        for layer in top_layers {
+            spawn_ecs_tiles(layer, &mut world, &tile_sprites);
+        }
 
         //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
 
@@ -262,6 +297,7 @@ impl GameState {
 
         Ok(GameState {
             characters: character_map,
+            npcs: npc_map,
             world,
             sprite_map: tile_sprites,
             layers: layers,
@@ -279,82 +315,30 @@ impl GameState {
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
-        for (_id, (camera, _player, _character)) in self
-            .world
-            .query::<(&Camera, &Player, &Character)>()
-            .iter()
-            .take(1)
-        {
+        for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
             graphics::set_transform_matrix(ctx, camera.as_matrix());
         }
         graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
 
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
-        let bg_layer_2: tiled::Layer = layers.remove(0);
+        let bg_layer2: tiled::Layer = layers.remove(0);
         draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
-        draw_layer(bg_layer_2.clone(), &self.texture_map, &self.sprite_map, ctx);
+        draw_layer(bg_layer2.clone(), &self.texture_map, &self.sprite_map, ctx);
         let mut render_vec: Vec<_> = self
             .world
-            .query::<(
-                &EntityAnimation,
-                &DefaultBodyHandle,
-                &AnimationData,
-                &Character,
-            )>()
+            .query::<&Draw>()
             .iter()
-            .map(|(_, (&e, &d, a, &c))| (e, d, a.clone(), c))
+            .map(|(_, d)| d.clone())
             .collect();
-        render_vec.sort_by(|a, b| {
-            let a = self
-                .body_set
-                .rigid_body(a.1)
-                .unwrap()
-                .position()
-                .translation
-                .vector
-                .y;
-            let b = self
-                .body_set
-                .rigid_body(b.1)
-                .unwrap()
-                .position()
-                .translation
-                .vector
-                .y;
-            a.partial_cmp(&b).unwrap()
-        });
-        for (anim, handle, anim_data, character) in render_vec {
-            let anim = match anim.direction {
-                Direction::Up => &anim_data.up,
-                Direction::Down => &anim_data.down,
-                Direction::Left => &anim_data.left,
-                Direction::Right => &anim_data.right,
-            };
-
-            let mut animation = Animation::new(
-                self.characters.get(&character.0).unwrap().clone(),
-                anim.frames.clone(),
-                anim.frame_duration,
-            );
-            animation.set_current_frame_index(anim.frame_index);
-            let body = self.body_set.rigid_body(handle).unwrap();
-            let pos = Vec2::new(
-                body.position().translation.vector.x,
-                body.position().translation.vector.y,
-            );
-            graphics::draw(
-                ctx,
-                &animation,
-                DrawParams::new()
-                    .position(pos)
-                    .origin(Vec2::new(9.5, 27.0))
-                    .scale(Vec2::new(SCALE, SCALE)),
-            );
+        render_vec.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+        for draw in render_vec {
+            if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
+                draw.draw(ctx, &self.texture_map, (&self.characters, &self.npcs), &self.body_set);
+            }
         }
-
-        for x in layers {
-            draw_layer(x.clone(), &self.texture_map, &self.sprite_map, ctx);
+        for layer in layers {
+            draw_layer(layer, &self.texture_map, &self.sprite_map, ctx);
         }
 
         Ok(())
@@ -371,18 +355,32 @@ impl State for GameState {
             &mut self.force_gen_set,
         );
 
-        for (_id, (camera, _player, handle)) in
-            &mut self
-                .world
-                .query::<(&mut Camera, &Player, &DefaultBodyHandle)>()
+        for (_id, (camera, _player, draw)) in
+            &mut self.world.query::<(&mut Camera, &Player, &Draw)>()
         {
-            let player_body = self.body_set.rigid_body_mut(*handle).unwrap();
+            let handle = draw.player.as_ref().unwrap().handle;
+            let player_body = self.body_set.rigid_body_mut(handle).unwrap();
             player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
             camera.position = Vec2::new(
-                player_body.position().translation.vector.x,
-                player_body.position().translation.vector.y,
+                player_body.position().translation.vector.x * 2.0,
+                player_body.position().translation.vector.y * 2.0,
             );
             camera.update();
+        }
+        for (_id, draw) in &mut self.world.query::<(&mut Draw)>() {
+            if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
+                let entity = draw.player.as_ref().unwrap();
+                let handle = entity.handle;
+                let y = self
+                    .body_set
+                    .rigid_body(handle)
+                    .unwrap()
+                    .position()
+                    .translation
+                    .y;
+
+                draw.y = y;
+            }
         }
         // for(_id, (_npc, handle)) in &mut self.world.query::<(&NPC, &DefaultBodyHandle)>(){
         //     let body = self.body_set.rigid_body_mut(*handle).unwrap();

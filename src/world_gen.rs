@@ -26,10 +26,10 @@ pub fn create_map_bounds(
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         let x_max = row.len() - 1;
         for (x, &tile) in row.iter().enumerate() {
-            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(16.0 - 0.01)));
+            let shape = ShapeHandle::new(Cuboid::new(Vector2::repeat(8.0 - 0.01)));
             if tile.gid == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -48,7 +48,7 @@ pub fn create_map_bounds(
             }
             if y == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, (y as f32 * 32.0) - 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, (y as f32 * 16.0) - 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -65,7 +65,7 @@ pub fn create_map_bounds(
                 colliders.insert(world_body_collider);
             } else if y == y_max {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) + 16.0, ((y as f32 + 1.0) * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) + 8.0, ((y as f32 + 1.0) * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -84,7 +84,7 @@ pub fn create_map_bounds(
 
             if x == 0 {
                 let shape_pos = Isometry2::new(
-                    Vector2::new((x as f32 * 32.0) - 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new((x as f32 * 16.0) - 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -101,7 +101,7 @@ pub fn create_map_bounds(
                 colliders.insert(world_body_collider);
             } else if x == x_max {
                 let shape_pos = Isometry2::new(
-                    Vector2::new(((x as f32 + 1.0) * 32.0) + 16.0, (y as f32 * 32.0) + 16.0),
+                    Vector2::new(((x as f32 + 1.0) * 16.0) + 8.0, (y as f32 * 16.0) + 8.0),
                     nalgebra::zero(),
                 );
                 let world_body = RigidBodyDesc::new()
@@ -161,23 +161,26 @@ pub fn create_physics_world(
                         width = dimensions.unwrap().0.clone();
                         height = dimensions.unwrap().1.clone();
                     }
-                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(width, height)));
+                    
+                    let shape = ShapeHandle::new(Cuboid::new(Vector2::new(width / 2.0, height / 2.0)));
                     let mut translator: (f32, f32);
                     match rotation {
-                        0.0 => translator = (obj.x, obj.y),
-                        90.0 => translator = (obj.y, obj.x),
-                        -90.0 => translator = (obj.y, -obj.x),
-                        180.0 => translator = (-obj.x, obj.y),
-                        _ => panic!("Invalid Rotation: {:?}", rotation),
+                        0.0 => translator = (obj.x , obj.y ),
+                        90.0 => translator = (obj.y / 2.0 , obj.x / 2.0 ),
+                        -90.0 => translator = (obj.y / 2.0 , -obj.x / 2.0 ),
+                        180.0 => translator = (-obj.x / 2.0 , -obj.y / 2.0 ),
+                        _ => translator = (obj.x, obj.y),
                     }
-                    if sprite.width == 32.0 && sprite.height == 32.0 {
-                        translator.0 = translator.0 + translator.0;
-                        translator.1 = translator.1 + translator.1;
-                    }
+
+                    
+
+                    
+                    
+                    
                     let world_body = RigidBodyDesc::new()
                         .translation(Vector2::new(
-                            ((x as f32 * 32.0) + translator.0) + 16.0,
-                            ((y as f32 * 32.0) + translator.1) + 16.0,
+                            (x as f32 * 16.0) + (width / 2.0) + translator.0 ,
+                            (y as f32 * 16.0) + (height / 2.0) + translator.1 ,
                         ))
                         .rotation(nalgebra::zero())
                         .gravity_enabled(false)

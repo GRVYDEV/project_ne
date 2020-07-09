@@ -3,19 +3,23 @@ use hecs::World;
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 
-use nphysics2d::object::{DefaultBodySet, DefaultColliderSet};
+use nphysics2d::object::{DefaultBodyHandle, DefaultBodySet, DefaultColliderSet};
 use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 
 use rand::Rng;
 use std::collections::HashMap;
 
 use std::time::Duration;
+use tetra::graphics;
 
-use tetra::graphics::{Rectangle, Texture};
+use tetra::graphics::{Rectangle, Texture, DrawParams, animation::Animation};
+use tetra::Context;
 
 use tetra::math::Vec2;
 
 use tiled::Layer;
+
+use crate::SCALE;
 
 pub struct LastDirection(pub Direction);
 #[derive(Clone, Copy)]
@@ -54,8 +58,9 @@ pub struct GameState {
     pub constraint_set: DefaultJointConstraintSet<f32>,
     pub force_gen_set: DefaultForceGeneratorSet<f32>,
     pub characters: HashMap<usize, Texture>,
+    pub npcs: HashMap<usize, Texture>
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sprite {
     pub width: f32,
     pub height: f32,
@@ -71,6 +76,119 @@ pub enum Direction {
     Down,
     Left,
     Right,
+}
+#[derive(Clone, PartialEq)]
+pub enum DrawType {
+    Character,
+    Tile,
+    NPC,
+}
+#[derive(Clone)]
+pub struct CharacterDrawData {
+    pub entity_animation: EntityAnimation,
+    pub handle: DefaultBodyHandle,
+    pub animation_data: AnimationData,
+    pub character: Character,
+}
+#[derive(Clone)]
+pub struct TileDrawData {
+    pub pos: Vec2<f32>,
+    pub sprite: Sprite,
+    pub rotation: f32,
+}
+#[derive(Clone)]
+pub struct Draw {
+    pub y: f32,
+    pub draw_type: DrawType,
+    pub player: Option<CharacterDrawData>,
+    pub tile: Option<TileDrawData>,
+}
+
+impl Draw {
+    pub fn draw(&self, ctx: &mut Context, texture_map: &HashMap<String, Texture>, characters: (&HashMap<usize, Texture>, &HashMap<usize, Texture>,), body_set: &DefaultBodySet<f32>  ) {
+        match self.draw_type {
+            DrawType::Tile => {
+                let tile = self.tile.as_ref().unwrap();
+                let texture = texture_map.get(&tile.sprite.texture).unwrap();
+                let position = tile.pos;
+                graphics::draw(
+                    ctx,
+                    texture,
+                    DrawParams::new()
+                        .position(Vec2::new(position.x + 16.0, position.y - 16.0))
+                        .origin(Vec2::new(8.0, 8.0))
+                        .scale(Vec2::new(SCALE, SCALE))
+                        .clip(tile.sprite.rect)
+                        .rotation(tile.rotation.to_radians()),
+                );
+            }
+            DrawType::Character => {
+                let player = self.player.as_ref().unwrap().clone();
+                let entity_anim = player.entity_animation;
+                let anim_data = player.animation_data;
+                let character = player.character;
+                let handle = player.handle;
+                let anim = match entity_anim.direction {
+                    Direction::Up => &anim_data.up,
+                    Direction::Down => &anim_data.down,
+                    Direction::Left => &anim_data.left,
+                    Direction::Right => &anim_data.right,
+                };
+                let mut animation = Animation::new(
+                    characters.0.get(&character.0).unwrap().clone(),
+                    anim.frames.clone(),
+                    anim.frame_duration,
+                );
+                animation.set_current_frame_index(anim.frame_index);
+                let body = body_set.rigid_body(handle).unwrap();
+                let pos = Vec2::new(
+                    body.position().translation.vector.x * 2.0,
+                    body.position().translation.vector.y * 2.0,
+                );
+                graphics::draw(
+                    ctx,
+                    &animation,
+                    DrawParams::new()
+                        .position(pos)
+                        .origin(Vec2::new(9.5, 27.0))
+                        .scale(Vec2::new(SCALE, SCALE)),
+                );
+            },
+            DrawType::NPC => {
+                let player = self.player.as_ref().unwrap().clone();
+                let entity_anim = player.entity_animation;
+                let anim_data = player.animation_data;
+                let character = player.character;
+                let handle = player.handle;
+                let anim = match entity_anim.direction {
+                    Direction::Up => &anim_data.up,
+                    Direction::Down => &anim_data.down,
+                    Direction::Left => &anim_data.left,
+                    Direction::Right => &anim_data.right,
+                };
+                let mut animation = Animation::new(
+                    characters.1.get(&character.0).unwrap().clone(),
+                    anim.frames.clone(),
+                    anim.frame_duration,
+                );
+                animation.set_current_frame_index(anim.frame_index);
+                let body = body_set.rigid_body(handle).unwrap();
+                let pos = Vec2::new(
+                    body.position().translation.vector.x * 2.0,
+                    body.position().translation.vector.y * 2.0,
+                );
+                graphics::draw(
+                    ctx,
+                    &animation,
+                    DrawParams::new()
+                        .position(pos)
+                        .origin(Vec2::new(9.5, 27.0))
+                        .scale(Vec2::new(SCALE, SCALE)),
+                );
+            }
+            _ => unimplemented!("Invalid Draw Type"),
+        }
+    }
 }
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum AnimationKey {
