@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tetra::graphics;
 
-use tetra::graphics::{Rectangle, Texture, DrawParams, animation::Animation};
+use tetra::graphics::{animation::Animation, DrawParams, Rectangle, Texture};
 use tetra::Context;
 
 use tetra::math::Vec2;
@@ -20,7 +20,10 @@ use tetra::math::Vec2;
 use tiled::Layer;
 
 use crate::SCALE;
-
+pub struct SpawnBounds {
+    pub x: (f32, f32),
+    pub y: (f32, f32),
+}
 pub struct LastDirection(pub Direction);
 #[derive(Clone, Copy)]
 pub struct Character(pub usize, pub usize);
@@ -58,7 +61,7 @@ pub struct GameState {
     pub constraint_set: DefaultJointConstraintSet<f32>,
     pub force_gen_set: DefaultForceGeneratorSet<f32>,
     pub characters: HashMap<usize, Texture>,
-    pub npcs: HashMap<usize, Texture>
+    pub npcs: HashMap<usize, Texture>,
 }
 #[derive(Debug, Clone)]
 pub struct Sprite {
@@ -105,7 +108,13 @@ pub struct Draw {
 }
 
 impl Draw {
-    pub fn draw(&self, ctx: &mut Context, texture_map: &HashMap<String, Texture>, characters: (&HashMap<usize, Texture>, &HashMap<usize, Texture>,), body_set: &DefaultBodySet<f32>  ) {
+    pub fn draw(
+        &self,
+        ctx: &mut Context,
+        texture_map: &HashMap<String, Texture>,
+        characters: (&HashMap<usize, Texture>, &HashMap<usize, Texture>),
+        body_set: &DefaultBodySet<f32>,
+    ) {
         match self.draw_type {
             DrawType::Tile => {
                 let tile = self.tile.as_ref().unwrap();
@@ -153,7 +162,7 @@ impl Draw {
                         .origin(Vec2::new(9.5, 27.0))
                         .scale(Vec2::new(SCALE, SCALE)),
                 );
-            },
+            }
             DrawType::NPC => {
                 let player = self.player.as_ref().unwrap().clone();
                 let entity_anim = player.entity_animation;

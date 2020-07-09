@@ -1,6 +1,6 @@
 use crate::components::{
     AnimationData, Character, CharacterDrawData, Direction, Draw, DrawType, EntityAnimation,
-    NPCState, NPC,
+    NPCState, NPC, SpawnBounds
 };
 use crate::player::PLAYER_SPEED;
 use hecs::World;
@@ -66,12 +66,13 @@ pub fn spawn_npcs(
     world: &mut World,
     char_count: usize,
     anims: AnimationData,
+    bounds: &SpawnBounds
 ) {
     let mut rng = rand::thread_rng();
     for x in 0..count {
         let shape = ShapeHandle::new(Cuboid::new(Vector2::new(5.25, 5.0)));
         let player_pos = Isometry2::new(
-            Vector2::new(rng.gen_range(50.0, 700.0), rng.gen_range(50.0, 700.0)),
+            Vector2::new(rng.gen_range(bounds.x.0, bounds.x.1), rng.gen_range(bounds.y.0, bounds.y.1)),
             nalgebra::zero(),
         );
         let body = RigidBodyDesc::new()

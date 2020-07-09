@@ -22,12 +22,13 @@ pub fn new_player(
     bodies: &mut DefaultBodySet<f32>,
     colliders: &mut DefaultColliderSet<f32>,
     anims: AnimationData,
+    pos: &Vector2<f32>,
 ) -> tetra::Result<Entity> {
     let camera = Camera::with_window_size(ctx);
 
     let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(5.25, 5.0)));
 
-    let player_pos = Isometry2::new(Vector2::new(400.0, 400.0), nalgebra::zero());
+    let player_pos = Isometry2::new(*pos, nalgebra::zero());
 
     let player_body = RigidBodyDesc::new()
         .position(player_pos)

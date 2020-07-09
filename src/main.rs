@@ -32,6 +32,10 @@ const TILESETS: &[(&str, &[u8])] = &[
         "chest-sheet",
         include_bytes!("../resources/map/tilesets/chest-sheet.png"),
     ),
+    (
+        "castle",
+        include_bytes!("../resources/map/tilesets/castle.png"),
+    ),
 ];
 
 const PLAYER_SHEETS: &[(&usize, &[u8])] = &[
@@ -197,7 +201,10 @@ impl GameState {
             down: Anim::new(&anim_down, Duration::from_secs_f64(ANIM_SPEED)),
         };
 
-        let tiled_data = parse(&include_bytes!("../resources/map/map3.tmx")[..]).unwrap();
+        let tiled_data = parse(&include_bytes!("../resources/map/map5.tmx")[..]).unwrap();
+        //fs::write("map.ron", format!("{:#?}", &tiled_data.clone())).unwrap();
+
+        let map = &tiled_data.clone();
         //fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
         let tilesets = tiled_data.tilesets;
         let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
@@ -263,27 +270,14 @@ impl GameState {
         let mut colliders = DefaultColliderSet::new();
         let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
+        
         let layers = tiled_data.layers;
         create_map_bounds(&layers[0], &mut colliders, &mut bodies);
 
-        new_player(
-            ctx,
-            &mut world,
-            character_map.len() - 1,
-            &mut bodies,
-            &mut colliders,
-            anim_data.clone(),
-        )
-        .expect("Failed to create Player");
+        
 
-        spawn_npcs(
-            100,
-            &mut colliders,
-            &mut bodies,
-            &mut world,
-            npc_map.len() - 1,
-            anim_data.clone(),
-        );
+
+        spawn(&mut colliders, &mut bodies, &mut world, (&(npc_map.len() - 1), &(character_map.len() - 1)), &anim_data, map, ctx );
 
         let top_layers = &layers[1..];
 
@@ -291,7 +285,7 @@ impl GameState {
             spawn_ecs_tiles(layer, &mut world, &tile_sprites);
         }
 
-        //fs::write("sprite.txt", format!("{:#?}", tile_sprites)).unwrap();
+        
 
         create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
