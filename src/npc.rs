@@ -1,6 +1,6 @@
 use crate::components::{
     AnimationData, Character, CharacterDrawData, Direction, Draw, DrawType, EntityAnimation,
-    NPCState, NPC, SpawnBounds
+    NPCState, SpawnBounds, NPC,
 };
 use crate::player::PLAYER_SPEED;
 use hecs::World;
@@ -12,8 +12,7 @@ use ncollide2d::shape::{Cuboid, ShapeHandle};
 use nphysics2d::material::{BasicMaterial, MaterialHandle};
 
 use nphysics2d::object::{
-    BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
-    DefaultColliderSet, RigidBodyDesc,
+    BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodySet, DefaultColliderSet, RigidBodyDesc,
 };
 
 use rand::Rng;
@@ -24,12 +23,18 @@ pub fn npc_update(body_set: &mut DefaultBodySet<f32>, world: &mut World, ctx: &m
     // println!("{:?}", delta_time);
     let mut rng = rand::thread_rng();
     for (_id, (_npc, draw, state)) in &mut world.query::<(&NPC, &mut Draw, &mut NPCState)>() {
-        *state = match rng.gen_range(0, 100) {
-            1 => NPCState::random(),
-            _ => *state,
-        };
-
         let mut player = draw.player.as_mut().unwrap();
+
+        if player.colliding {
+            *state = NPCState::random_move();
+            player.colliding = false;
+        } else {
+            *state = match rng.gen_range(0, 50) {
+                1 => NPCState::random(),
+                _ => *state,
+            };
+        }
+
         let body = body_set.rigid_body_mut(player.handle).unwrap();
         match state {
             NPCState::Down => {
@@ -66,13 +71,16 @@ pub fn spawn_npcs(
     world: &mut World,
     char_count: usize,
     anims: AnimationData,
-    bounds: &SpawnBounds
+    bounds: &SpawnBounds,
 ) {
     let mut rng = rand::thread_rng();
     for x in 0..count {
         let shape = ShapeHandle::new(Cuboid::new(Vector2::new(5.25, 5.0)));
         let player_pos = Isometry2::new(
-            Vector2::new(rng.gen_range(bounds.x.0, bounds.x.1), rng.gen_range(bounds.y.0, bounds.y.1)),
+            Vector2::new(
+                rng.gen_range(bounds.x.0, bounds.x.1),
+                rng.gen_range(bounds.y.0, bounds.y.1),
+            ),
             nalgebra::zero(),
         );
         let body = RigidBodyDesc::new()
@@ -101,6 +109,7 @@ pub fn spawn_npcs(
                 },
                 character: Character(rng.gen_range(0, char_count), char_count),
                 handle: handle,
+                colliding: false,
             }),
         };
         let entity = world.spawn((NPC, draw, NPCState::Idle));

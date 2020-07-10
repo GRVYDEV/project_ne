@@ -2,10 +2,10 @@ use crate::components::*;
 use hecs::{Entity, World};
 use nalgebra::base::Vector2;
 
-use nalgebra::geometry::{Isometry2, Point2, Translation2};
+use nalgebra::geometry::{Isometry2};
 use ncollide2d::shape::{Cuboid, ShapeHandle};
 use nphysics2d::object::{
-    BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
+    BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodySet,
     DefaultColliderSet, RigidBodyDesc,
 };
 use tetra::graphics::Camera;
@@ -54,6 +54,7 @@ pub fn new_player(
             },
             character: Character(0, char_count),
             handle: player_handle,
+            colliding: false
         }),
     };
 
@@ -108,5 +109,6 @@ pub fn player_update(body_set: &mut DefaultBodySet<f32>, ctx: &mut Context, worl
             player.entity_animation.direction = Direction::Left;
             player.animation_data.left.advance(delta_time);
         }
+       
     }
 }
