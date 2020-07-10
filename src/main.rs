@@ -14,6 +14,7 @@ use game::{run, Game, GameEvent};
 use graphics::load_texture_from_bytes;
 use graphics::SpriteBatch;
 use graphics::orthographic_projection;
+use graphics::Region;
 
 
 
@@ -490,6 +491,7 @@ impl Game for MyGameState {
     where
         C: GraphicsContext,
     {
+        self.texture.get_mut("terrain_2").unwrap().queue_sprite(Vector2::new(0.0, 0.0), Region{x: 16.0, y: 48.0, width: 16.0, height: 16.0});
         self.texture.get_mut("terrain_2").unwrap().prepare(context);
         context.pipeline_builder().pipeline(&buffer, &PipelineState::default(), |mut pipeline, mut shd_gate|{
             self.texture.get_mut("terrain_2").unwrap().draw(&mut pipeline, &mut shd_gate,  orthographic_projection(buffer.width(), buffer.height()));

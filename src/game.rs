@@ -31,9 +31,9 @@ where
     let (mut surface, event_loop) = new_window(1600.0, 900.0).unwrap();
     let mut game = G::new(&mut surface);
     let mut last_frame = std::time::Instant::now();
-
+    let mut resize = false;
     let mut time_buffer = Duration::new(0, 0);
-    let framebuffer = surface.back_buffer().unwrap();
+    let mut framebuffer = surface.back_buffer().unwrap();
     surface.ctx.window().request_redraw();
     event_loop.run(move |event, target, control_flow| {
         let delta_time = std::time::Instant::now().duration_since(last_frame);
@@ -44,6 +44,10 @@ where
             Event::LoopDestroyed => return,
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(size) => {
+                    game.process_event(GameEvent::WindowEvent(WindowEvent::Resized(size)));
+                    resize = true;
+                }
                 e => {
                     if let Some(event) = e.to_static() {
                         game.process_event(GameEvent::WindowEvent(event));
@@ -51,6 +55,11 @@ where
                 }
             },
             Event::RedrawRequested(_) => {
+                if resize {
+                    framebuffer = surface.back_buffer().unwrap();
+                    surface.back_buffer().unwrap();
+                    resize = false;
+                }
                 game.draw(&mut surface, delta_time, &framebuffer);
                 surface.swap_buffers();
                 surface.ctx.window().request_redraw();
