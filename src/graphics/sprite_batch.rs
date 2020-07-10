@@ -1,9 +1,9 @@
-use luminance::pixel::NormRGBA8UI;
 use luminance::blending::{Equation, Factor};
 use luminance::context::GraphicsContext;
 use luminance::pipeline::BoundTexture;
 use luminance::pipeline::Pipeline as LuminancePipeline;
 use luminance::pipeline::ShadingGate;
+use luminance::pixel::NormRGBA8UI;
 
 use luminance::pixel::NormUnsigned;
 use luminance::render_state::RenderState;
@@ -46,7 +46,7 @@ pub struct Region {
 }
 
 #[allow(dead_code)]
- impl SpriteBatch {
+impl SpriteBatch {
     pub fn new(texture: Texture<Dim2, NormRGBA8UI>) -> Self {
         let program = Program::<Semantics, (), ShaderInterface>::from_strings(None, VS, None, FS)
             .expect("shader failed to compile")
@@ -60,11 +60,17 @@ pub struct Region {
         }
     }
     pub fn queue_sprite(&mut self, position: Vector2<f32>, region: Region) {
+        let region2 = Region {
+            x: region.x,
+            y: region.y,
+            height: region.height * 2.0,
+            width: region.width * 2.0,
+        };
         let texture_size =
             Vector2::new(self.texture.size()[0] as f32, self.texture.size()[1] as f32);
-        let v0 = Vector2::new(position.x, position.y + region.height);
-        let v1 = Vector2::new(position.x + region.width, position.y + region.height);
-        let v2 = Vector2::new(position.x + region.width, position.y);
+        let v0 = Vector2::new(position.x, position.y + region2.height);
+        let v1 = Vector2::new(position.x + region2.width, position.y + region2.height);
+        let v2 = Vector2::new(position.x + region2.width, position.y);
         let v3 = position;
 
         let t0 = Vector2::new(
