@@ -1,4 +1,6 @@
+
 use hecs::World;
+
 
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
@@ -15,7 +17,10 @@ use tetra::graphics;
 use tetra::graphics::{animation::Animation, DrawParams, Rectangle, Texture};
 use tetra::Context;
 
+
 use tetra::math::Vec2;
+
+use crate::game::Game;
 
 use tiled::Layer;
 
@@ -74,6 +79,8 @@ pub struct GameState {
     pub characters: HashMap<usize, Texture>,
     pub npcs: HashMap<usize, Texture>,
 }
+
+
 #[derive(Debug, Clone)]
 pub struct Sprite {
     pub width: f32,
@@ -103,7 +110,7 @@ pub struct CharacterDrawData {
     pub handle: DefaultBodyHandle,
     pub animation_data: AnimationData,
     pub character: Character,
-    pub colliding: bool
+    pub colliding: bool,
 }
 #[derive(Clone)]
 pub struct TileDrawData {

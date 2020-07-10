@@ -8,6 +8,14 @@ mod player;
 use player::*;
 mod npc;
 use npc::*;
+mod game;
+mod graphics;
+use game::{run, Game, GameEvent};
+use graphics::load_texture_from_bytes;
+use graphics::SpriteBatch;
+use graphics::orthographic_projection;
+
+
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -42,7 +50,7 @@ const PLAYER_SHEETS: &[(&usize, &[u8])] = &[
     (&0, include_bytes!("../resources/Wizard-Sheet.png")),
     (&1, include_bytes!("../resources/Viking-Sheet.png")),
     (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
-    (&3, include_bytes!("../resources/Red-Hair-Sheet.png"))
+    (&3, include_bytes!("../resources/Red-Hair-Sheet.png")),
 ];
 
 const NPC_SHEETS: &[(&usize, &[u8])] = &[
@@ -51,7 +59,7 @@ const NPC_SHEETS: &[(&usize, &[u8])] = &[
     (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
     (&3, include_bytes!("../resources/NPC01-Sheet.png")),
     (&4, include_bytes!("../resources/NPC02-Sheet.png")),
-    (&5, include_bytes!("../resources/Red-Hair-Sheet.png"))
+    (&5, include_bytes!("../resources/Red-Hair-Sheet.png")),
 ];
 
 // x width for char = 75
@@ -108,7 +116,7 @@ fn draw_layer(
                 rotation += 0.0;
             }
 
-            graphics::draw(
+            tetra_graphics::draw(
                 ctx,
                 texture,
                 DrawParams::new()
@@ -160,10 +168,16 @@ fn spawn_ecs_tiles(lyr: &tiled::Layer, world: &mut World, sprite_map: &HashMap<u
     }
 }
 
-fn handle_contact(world: &DefaultGeometricalWorld<f32>, event: &ContactEvent<DefaultBodyHandle>, ecs_world: &mut World){
+fn handle_contact(
+    world: &DefaultGeometricalWorld<f32>,
+    event: &ContactEvent<DefaultBodyHandle>,
+    ecs_world: &mut World,
+) {
     if let &ContactEvent::Started(collider1, collider2) = event {
-        for (_id, ( draw, _npc)) in &mut ecs_world.query::<(&mut Draw, &NPC)>() {
-            if draw.player.as_mut().unwrap().handle == collider1 || draw.player.as_mut().unwrap().handle == collider2{
+        for (_id, (draw, _npc)) in &mut ecs_world.query::<(&mut Draw, &NPC)>() {
+            if draw.player.as_mut().unwrap().handle == collider1
+                || draw.player.as_mut().unwrap().handle == collider2
+            {
                 draw.player.as_mut().unwrap().colliding = true;
             }
         }
@@ -179,15 +193,13 @@ impl GameState {
                 .entry(k.to_string())
                 .or_insert(Texture::from_file_data(ctx, v)?);
         }
-        
 
-    
         let mut character_map = HashMap::new();
         let mut npc_map = HashMap::new();
-        for (k,v) in PLAYER_SHEETS {
+        for (k, v) in PLAYER_SHEETS {
             character_map.insert(**k, Texture::from_file_data(ctx, v)?);
         }
-        for (k,v) in NPC_SHEETS {
+        for (k, v) in NPC_SHEETS {
             npc_map.insert(**k, Texture::from_file_data(ctx, v)?);
         }
 
@@ -280,22 +292,24 @@ impl GameState {
         let mut colliders = DefaultColliderSet::new();
         let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
-        
         let layers = tiled_data.layers;
         create_map_bounds(&layers[0], &mut colliders, &mut bodies);
 
-        
-
-
-        spawn(&mut colliders, &mut bodies, &mut world, (&(npc_map.len() - 1), &(character_map.len() - 1)), &anim_data, map, ctx );
+        spawn(
+            &mut colliders,
+            &mut bodies,
+            &mut world,
+            (&(npc_map.len() - 1), &(character_map.len() - 1)),
+            &anim_data,
+            map,
+            ctx,
+        );
 
         let top_layers = &layers[1..];
 
         for layer in top_layers {
             spawn_ecs_tiles(layer, &mut world, &tile_sprites);
         }
-
-        
 
         create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
@@ -320,9 +334,9 @@ impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
         //&self.texture.set_current_frame_index(1);
         for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
-            graphics::set_transform_matrix(ctx, camera.as_matrix());
+            tetra_graphics::set_transform_matrix(ctx, camera.as_matrix());
         }
-        graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
+        tetra_graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
 
         let mut layers = self.layers.clone();
         let bg_layer: tiled::Layer = layers.remove(0);
@@ -338,7 +352,12 @@ impl State for GameState {
         render_vec.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
         for draw in render_vec {
             if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
-                draw.draw(ctx, &self.texture_map, (&self.characters, &self.npcs), &self.body_set);
+                draw.draw(
+                    ctx,
+                    &self.texture_map,
+                    (&self.characters, &self.npcs),
+                    &self.body_set,
+                );
             }
         }
         for layer in layers {
@@ -407,11 +426,84 @@ impl State for GameState {
         Ok(())
     }
 }
+fn draw_layer_new<C>(
+    lyr: tiled::Layer,
+    texture_map: &HashMap<String, lum_Texture<Dim2, NormRGBA8UI>>,
+    sprite_map: &HashMap<u32, Sprite>,
+   
+) {
+    for (y, row) in lyr.tiles.iter().enumerate().clone() {
+        for (x, &tile) in row.iter().enumerate() {
+            if tile.gid == 0 {
+                continue;
+            }
 
-fn main() -> tetra::Result {
-    ContextBuilder::new("Neon", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
-        .resizable(true)
-        .quit_on_escape(true)
-        .build()?
-        .run(GameState::new)
+            let gid = tile.gid;
+            let sprite = sprite_map.get(&gid).unwrap();
+            let mut origin = Vec2::new(8.0, 8.0);
+            if sprite.width == 16.0 && sprite.height == 16.0 {
+                origin.x = 8.0;
+                origin.y = 8.0;
+            }
+
+            let texture = texture_map.get(&sprite.texture).unwrap();
+            let mut rotation: f32 = 0.0;
+            if tile.flip_h {
+                rotation += 180.0;
+            }
+            if tile.flip_d {
+                rotation -= 90.0;
+            }
+            if tile.flip_v {
+                rotation += 0.0;
+            }
+            
+            
+        }
+    }
+}
+pub struct MyGameState {
+    texture: HashMap<String, SpriteBatch>
+}
+impl GameState {}
+
+impl Game for MyGameState {
+    fn new<C>(context: &mut C) -> Self
+    where
+        C: GraphicsContext,
+    {
+        let mut file_to_texture = HashMap::new();
+        for (k, v) in TILESETS {
+            
+            file_to_texture
+                .entry(k.to_string())
+                .or_insert(SpriteBatch::new(load_texture_from_bytes(context, v)));
+        }
+        MyGameState {
+            texture: file_to_texture
+        }
+    }
+
+    fn update(&mut self) {}
+
+    fn draw<C>(&mut self, context: &mut C, delta_time: Duration, buffer: &Framebuffer<Dim2, (), ()>)
+    where
+        C: GraphicsContext,
+    {
+        self.texture.get_mut("terrain_2").unwrap().prepare(context);
+        context.pipeline_builder().pipeline(&buffer, &PipelineState::default(), |mut pipeline, mut shd_gate|{
+            self.texture.get_mut("terrain_2").unwrap().draw(&mut pipeline, &mut shd_gate,  orthographic_projection(buffer.width(), buffer.height()));
+        });
+    }
+
+    fn process_event(&mut self, event: GameEvent) {}
+}
+
+fn main() {
+    run::<MyGameState>();
+    // ContextBuilder::new("Neon", WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
+    //     .resizable(true)
+    //     .quit_on_escape(true)
+    //     .build()?
+    //     .run(GameState::new)
 }

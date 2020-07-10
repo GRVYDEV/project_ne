@@ -15,7 +15,12 @@ ncollide2d = "0.23.2"
 nalgebra = "0.21.1"
 nphysics2d = "0.16.1"
 rand = "0.7"
-
+luminance = "0.39"
+luminance-derive = "0.5"
+luminance-glutin = "0.9"
+luminance-glyph = "0.1"
+glutin = "0.23"
+image = {version = "0.23.6", features = ["png"] }
 [dependencies.tetra]
 path = "../tetra"
 features = ["sdl2_static_link", "sdl2_bundled"]

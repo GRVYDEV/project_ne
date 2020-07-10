@@ -164,7 +164,7 @@ pub fn spawn(
                         colliders,
                         anim_data.clone(),
                         &pos,
-                    );
+                    ).expect("Failed to create player");
                 }
             }
         }
