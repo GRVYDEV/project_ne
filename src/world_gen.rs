@@ -6,12 +6,12 @@ use nalgebra::geometry::Isometry2;
 
 use ncollide2d::pipeline::CollisionGroups;
 
+use hecs::World;
 use ncollide2d::shape::{Cuboid, ShapeHandle};
 use nphysics2d::object::{
     BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodySet, DefaultColliderSet, RigidBodyDesc,
 };
 use tetra::Context;
-use hecs::World;
 
 use std::collections::HashMap;
 
@@ -132,7 +132,7 @@ pub fn spawn(
     sheet_lens: (&usize, &usize),
     anim_data: &AnimationData,
     map: &tiled::Map,
-    ctx: &mut Context
+    ctx: &mut Context,
 ) {
     if !map.object_groups.is_empty() {
         for object_group in &map.object_groups {
@@ -143,12 +143,28 @@ pub fn spawn(
                         y: (object.y, object.y + object.height),
                     };
                     if let Some(IntValue(count)) = object.properties.get("count") {
-                        spawn_npcs(*count as u32, colliders, bodies, world, *sheet_lens.0, anim_data.clone(), &bounds);
+                        spawn_npcs(
+                            *count as u32,
+                            colliders,
+                            bodies,
+                            world,
+                            *sheet_lens.0,
+                            anim_data.clone(),
+                            &bounds,
+                        );
                     }
                 }
                 if object.obj_type == "PlayerSpawn" {
                     let pos = Vector2::new(object.x + 8.0, object.y + 8.0);
-                    new_player(ctx, world, *sheet_lens.1, bodies, colliders, anim_data.clone(), &pos);
+                    new_player(
+                        ctx,
+                        world,
+                        *sheet_lens.1,
+                        bodies,
+                        colliders,
+                        anim_data.clone(),
+                        &pos,
+                    );
                 }
             }
         }
@@ -183,46 +199,44 @@ pub fn create_physics_world(
                 }
                 if sprite.collision_objects.is_some() {
                     let objs = sprite.collision_objects.as_ref().unwrap();
-                    let obj = &objs[0];
-                    let dimensions: Option<(&f32, &f32)> = match &obj.shape {
-                        ObjectShape::Rect { width, height } => Some((width, height)),
-                        _ => None,
-                    };
-                    let mut height: f32 = 0.0;
-                    let mut width: f32 = 0.0;
+                    
+                    for obj in objs {
+                        let dimensions: Option<(&f32, &f32)> = match &obj.shape {
+                            ObjectShape::Rect { width, height } => Some((width, height)),
+                            _ => None,
+                        };
+                        let mut height: f32 = 0.0;
+                        let mut width: f32 = 0.0;
+                        if dimensions.is_some() {
+                            width = dimensions.unwrap().0.clone();
+                            height = dimensions.unwrap().1.clone();
+                        }
+                        let shape =
+                            ShapeHandle::new(Cuboid::new(Vector2::new(width / 2.0, height / 2.0)));
+                        let mut translator: (f32, f32);
+                        match rotation {
+                            0.0 => translator = (obj.x, obj.y),
+                            90.0 => translator = (obj.y / 2.0, obj.x / 2.0),
+                            -90.0 => translator = (obj.y / 2.0, -obj.x / 2.0),
+                            180.0 => translator = (-obj.x / 2.0, -obj.y / 2.0),
+                            _ => translator = (obj.x, obj.y),
+                        }
+                        let world_body = RigidBodyDesc::new()
+                            .translation(Vector2::new(
+                                (x as f32 * 16.0) + (width / 2.0) + translator.0,
+                                (y as f32 * 16.0) + (height / 2.0) + translator.1,
+                            ))
+                            .rotation(nalgebra::zero())
+                            .gravity_enabled(false)
+                            .status(BodyStatus::Static)
+                            .build();
+                        let world_body_handle = bodies.insert(world_body);
+                        let world_body_collider = ColliderDesc::new(shape)
+                            .rotation(rotation.to_radians())
+                            .build(BodyPartHandle(world_body_handle, 0));
 
-                    if dimensions.is_some() {
-                        width = dimensions.unwrap().0.clone();
-                        height = dimensions.unwrap().1.clone();
+                        colliders.insert(world_body_collider);
                     }
-
-                    let shape =
-                        ShapeHandle::new(Cuboid::new(Vector2::new(width / 2.0, height / 2.0)));
-                    let mut translator: (f32, f32);
-                    match rotation {
-                        0.0 => translator = (obj.x, obj.y),
-                        90.0 => translator = (obj.y / 2.0, obj.x / 2.0),
-                        -90.0 => translator = (obj.y / 2.0, -obj.x / 2.0),
-                        180.0 => translator = (-obj.x / 2.0, -obj.y / 2.0),
-                        _ => translator = (obj.x, obj.y),
-                    }
-                    let world_body = RigidBodyDesc::new()
-                        .translation(Vector2::new(
-                            (x as f32 * 16.0) + (width / 2.0) + translator.0,
-                            (y as f32 * 16.0) + (height / 2.0) + translator.1,
-                        ))
-                        .rotation(nalgebra::zero())
-                        .gravity_enabled(false)
-                        .status(BodyStatus::Static)
-                        .build();
-
-                    let world_body_handle = bodies.insert(world_body);
-
-                    let world_body_collider = ColliderDesc::new(shape)
-                        .rotation(rotation.to_radians())
-                        .build(BodyPartHandle(world_body_handle, 0));
-
-                    colliders.insert(world_body_collider);
                 }
             }
         }

@@ -39,13 +39,24 @@ impl NPCState {
     pub fn random() -> NPCState {
         let mut rng = rand::thread_rng();
 
-        let state = rng.gen_range(0, 5);
+        let state = rng.gen_range(0, 30);
         match state {
             0 => NPCState::Up,
             1 => NPCState::Down,
             2 => NPCState::Left,
             3 => NPCState::Right,
             _ => NPCState::Idle,
+        }
+    }
+    pub fn random_move() -> NPCState {
+        let mut rng = rand::thread_rng();
+
+        let state = rng.gen_range(0, 4);
+        match state {
+            0 => NPCState::Up,
+            1 => NPCState::Down,
+            2 => NPCState::Left,
+            _ => NPCState::Right,
         }
     }
 }
@@ -92,6 +103,7 @@ pub struct CharacterDrawData {
     pub handle: DefaultBodyHandle,
     pub animation_data: AnimationData,
     pub character: Character,
+    pub colliding: bool
 }
 #[derive(Clone)]
 pub struct TileDrawData {

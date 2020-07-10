@@ -160,6 +160,16 @@ fn spawn_ecs_tiles(lyr: &tiled::Layer, world: &mut World, sprite_map: &HashMap<u
     }
 }
 
+fn handle_contact(world: &DefaultGeometricalWorld<f32>, event: &ContactEvent<DefaultBodyHandle>, ecs_world: &mut World){
+    if let &ContactEvent::Started(collider1, collider2) = event {
+        for (_id, ( draw, _npc)) in &mut ecs_world.query::<(&mut Draw, &NPC)>() {
+            if draw.player.as_mut().unwrap().handle == collider1 || draw.player.as_mut().unwrap().handle == collider2{
+                draw.player.as_mut().unwrap().colliding = true;
+            }
+        }
+    }
+}
+
 impl GameState {
     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
         let mut world = World::new();
@@ -341,6 +351,9 @@ impl State for GameState {
     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
         player_update(&mut self.body_set, ctx, &mut self.world);
         npc_update(&mut self.body_set, &mut self.world, ctx);
+        for contact in self.geometrical_world.contact_events() {
+            handle_contact(&self.geometrical_world, &contact, &mut self.world)
+        }
         self.mechanical_world.step(
             &mut self.geometrical_world,
             &mut self.body_set,
