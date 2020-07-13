@@ -478,7 +478,7 @@ impl Game for MyGameState {
                 }
             }
         }
-        let mut camera = Camera::new(0.0, 0.0);
+        let mut camera = Camera::new(1600.0, 900.0);
         camera.set_position(Vector2::new(1600.0 / 2.0, 900.0 / 2.0));
         let layers = tiled_data.layers;
         MyGameState {
