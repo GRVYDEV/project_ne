@@ -15,6 +15,10 @@ use graphics::load_texture_from_bytes;
 use graphics::orthographic_projection;
 use graphics::Region;
 use graphics::SpriteBatch;
+mod camera;
+use camera::*;
+use glfw::WindowEvent;
+use std::collections::HashSet;
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -266,102 +270,102 @@ fn handle_contact(
 //     }
 // }
 
-impl State for GameState {
-    fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        //&self.texture.set_current_frame_index(1);
-        for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
-            tetra_graphics::set_transform_matrix(ctx, camera.as_matrix());
-        }
-        tetra_graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
+// impl State for GameState {
+//     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
+//         //&self.texture.set_current_frame_index(1);
+//         for (_id, camera) in self.world.query::<&Camera>().iter().take(1) {
+//             tetra_graphics::set_transform_matrix(ctx, camera.as_matrix());
+//         }
+//         tetra_graphics::clear(ctx, Color::rgb(0.0, 0.0, 0.0));
 
-        let mut layers = self.layers.clone();
-        let bg_layer: tiled::Layer = layers.remove(0);
-        let bg_layer2: tiled::Layer = layers.remove(0);
-        draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
-        draw_layer(bg_layer2.clone(), &self.texture_map, &self.sprite_map, ctx);
-        let mut render_vec: Vec<_> = self
-            .world
-            .query::<&Draw>()
-            .iter()
-            .map(|(_, d)| d.clone())
-            .collect();
-        render_vec.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
-        for draw in render_vec {
-            if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
-                draw.draw(
-                    ctx,
-                    &self.texture_map,
-                    (&self.characters, &self.npcs),
-                    &self.body_set,
-                );
-            }
-        }
-        for layer in layers {
-            draw_layer(layer, &self.texture_map, &self.sprite_map, ctx);
-        }
+//         let mut layers = self.layers.clone();
+//         let bg_layer: tiled::Layer = layers.remove(0);
+//         let bg_layer2: tiled::Layer = layers.remove(0);
+//         draw_layer(bg_layer.clone(), &self.texture_map, &self.sprite_map, ctx);
+//         draw_layer(bg_layer2.clone(), &self.texture_map, &self.sprite_map, ctx);
+//         let mut render_vec: Vec<_> = self
+//             .world
+//             .query::<&Draw>()
+//             .iter()
+//             .map(|(_, d)| d.clone())
+//             .collect();
+//         render_vec.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+//         for draw in render_vec {
+//             if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
+//                 draw.draw(
+//                     ctx,
+//                     &self.texture_map,
+//                     (&self.characters, &self.npcs),
+//                     &self.body_set,
+//                 );
+//             }
+//         }
+//         for layer in layers {
+//             draw_layer(layer, &self.texture_map, &self.sprite_map, ctx);
+//         }
 
-        Ok(())
-    }
+//         Ok(())
+//     }
 
-    fn update(&mut self, ctx: &mut Context) -> tetra::Result {
-        player_update(&mut self.body_set, ctx, &mut self.world);
-        npc_update(&mut self.body_set, &mut self.world, ctx);
-        for contact in self.geometrical_world.contact_events() {
-            handle_contact(&self.geometrical_world, &contact, &mut self.world)
-        }
-        self.mechanical_world.step(
-            &mut self.geometrical_world,
-            &mut self.body_set,
-            &mut self.collider_set,
-            &mut self.constraint_set,
-            &mut self.force_gen_set,
-        );
+//     fn update(&mut self, ctx: &mut Context) -> tetra::Result {
+//         player_update(&mut self.body_set, ctx, &mut self.world);
+//         npc_update(&mut self.body_set, &mut self.world, ctx);
+//         for contact in self.geometrical_world.contact_events() {
+//             handle_contact(&self.geometrical_world, &contact, &mut self.world)
+//         }
+//         self.mechanical_world.step(
+//             &mut self.geometrical_world,
+//             &mut self.body_set,
+//             &mut self.collider_set,
+//             &mut self.constraint_set,
+//             &mut self.force_gen_set,
+//         );
 
-        for (_id, (camera, _player, draw)) in
-            &mut self.world.query::<(&mut Camera, &Player, &Draw)>()
-        {
-            let handle = draw.player.as_ref().unwrap().handle;
-            let player_body = self.body_set.rigid_body_mut(handle).unwrap();
-            player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
-            camera.position = Vec2::new(
-                player_body.position().translation.vector.x * 2.0,
-                player_body.position().translation.vector.y * 2.0,
-            );
-            camera.update();
-        }
-        for (_id, draw) in &mut self.world.query::<(&mut Draw)>() {
-            if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
-                let entity = draw.player.as_ref().unwrap();
-                let handle = entity.handle;
-                let y = self
-                    .body_set
-                    .rigid_body(handle)
-                    .unwrap()
-                    .position()
-                    .translation
-                    .y;
+//         for (_id, (camera, _player, draw)) in
+//             &mut self.world.query::<(&mut Camera, &Player, &Draw)>()
+//         {
+//             let handle = draw.player.as_ref().unwrap().handle;
+//             let player_body = self.body_set.rigid_body_mut(handle).unwrap();
+//             player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
+//             camera.position = Vec2::new(
+//                 player_body.position().translation.vector.x * 2.0,
+//                 player_body.position().translation.vector.y * 2.0,
+//             );
+//             camera.update();
+//         }
+//         for (_id, draw) in &mut self.world.query::<(&mut Draw)>() {
+//             if draw.draw_type == DrawType::Character || draw.draw_type == DrawType::NPC {
+//                 let entity = draw.player.as_ref().unwrap();
+//                 let handle = entity.handle;
+//                 let y = self
+//                     .body_set
+//                     .rigid_body(handle)
+//                     .unwrap()
+//                     .position()
+//                     .translation
+//                     .y;
 
-                draw.y = y;
-            }
-        }
-        // for(_id, (_npc, handle)) in &mut self.world.query::<(&NPC, &DefaultBodyHandle)>(){
-        //     let body = self.body_set.rigid_body_mut(*handle).unwrap();
-        //     body.set_linear_velocity(Vector2::new(0.0, 0.0));
-        // }
+//                 draw.y = y;
+//             }
+//         }
+//         // for(_id, (_npc, handle)) in &mut self.world.query::<(&NPC, &DefaultBodyHandle)>(){
+//         //     let body = self.body_set.rigid_body_mut(*handle).unwrap();
+//         //     body.set_linear_velocity(Vector2::new(0.0, 0.0));
+//         // }
 
-        Ok(())
-    }
+//         Ok(())
+//     }
 
-    fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
-        if let Event::Resized { width, height } = event {
-            for (_id, camera) in self.world.query::<&mut Camera>().iter().take(1) {
-                camera.set_viewport_size(width as f32, height as f32);
-                camera.update();
-            }
-        }
-        Ok(())
-    }
-}
+//     fn event(&mut self, _ctx: &mut Context, event: Event) -> tetra::Result {
+//         if let Event::Resized { width, height } = event {
+//             for (_id, camera) in self.world.query::<&mut Camera>().iter().take(1) {
+//                 camera.set_viewport_size(width as f32, height as f32);
+//                 camera.update();
+//             }
+//         }
+//         Ok(())
+//     }
+// }
 fn draw_layer_new(
     batch: &mut SpriteBatch,
     lyr: tiled::Layer,
@@ -405,6 +409,7 @@ pub struct MyGameState {
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<tiled::Layer>,
     batch: SpriteBatch,
+    camera: Camera,
 }
 impl GameState {}
 
@@ -413,7 +418,7 @@ impl Game for MyGameState {
     where
         C: GraphicsContext,
     {
-        let mut file_to_texture = HashMap::new();
+        let mut file_to_texture = IndexMap::new();
         for (k, v) in TILESETS {
             file_to_texture
                 .entry(k.to_string())
@@ -473,15 +478,33 @@ impl Game for MyGameState {
                 }
             }
         }
+        let mut camera = Camera::new(0.0, 0.0);
+        camera.set_position(Vector2::new(1600.0 / 2.0, 900.0 / 2.0));
         let layers = tiled_data.layers;
         MyGameState {
             sprite_map: tile_sprites,
             layers: layers,
             batch,
+            camera,
         }
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self, key_buffer: &HashSet<glfw::Key>) {
+        let mut translate = Vector2::new(0.0, 0.0);
+        if key_buffer.contains(&glfw::Key::W) {
+            translate.y += 40.0;
+        }
+        if key_buffer.contains(&glfw::Key::A) {
+            translate.x += 40.0;
+        }
+        if key_buffer.contains(&glfw::Key::D) {
+            translate.x -= 40.0;
+        }
+        if key_buffer.contains(&glfw::Key::S) {
+            translate.y -= 40.0;
+        }
+        self.camera.translate(translate.x, translate.y);
+    }
 
     fn draw<C>(&mut self, context: &mut C, delta_time: Duration, buffer: &Framebuffer<Dim2, (), ()>)
     where
@@ -499,16 +522,18 @@ impl Game for MyGameState {
             &buffer,
             &PipelineState::default(),
             |mut pipeline, mut shd_gate| {
-                &mut self.batch.draw(
-                    &mut pipeline,
-                    &mut shd_gate,
-                    orthographic_projection(buffer.width(), buffer.height()),
-                );
+                &mut self
+                    .batch
+                    .draw(&mut pipeline, &mut shd_gate, self.camera.as_matrix());
             },
         );
     }
 
-    fn process_event(&mut self, event: GameEvent) {}
+    fn process_event(&mut self, event: GameEvent) {
+        if let GameEvent::WindowEvent(WindowEvent::FramebufferSize(width, height)) = event {
+            self.camera.set_size(width as u32, height as u32);
+        }
+    }
 }
 
 fn main() {

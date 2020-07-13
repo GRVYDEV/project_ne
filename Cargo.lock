@@ -773,6 +773,7 @@ dependencies = [
  "glfw 0.34.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hecs 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.23.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "indexmap 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "luminance 0.39.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "luminance-derive 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",

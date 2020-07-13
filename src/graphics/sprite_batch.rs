@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use luminance::blending::{Equation, Factor};
 use luminance::context::GraphicsContext;
 use luminance::framebuffer::Framebuffer;
@@ -31,14 +32,14 @@ struct ShaderInterface {
 // *Vertices is param_map v.0, Indicies is param_map v.1, Tess is v.2
 pub struct SpriteBatch {
     program: Program<Semantics, (), ShaderInterface>,
-    texture_map: HashMap<String, Texture<Dim2, NormRGBA8UI>>,
+    texture_map: IndexMap<String, Texture<Dim2, NormRGBA8UI>>,
     param_map: HashMap<String, (Vec<Vertex>, Vec<u32>, Option<Tess>)>,
 }
 
 fn to_4x4(array: &[f32; 16]) -> [[f32; 4]; 4] {
     unsafe { *(array as *const _ as *const _) }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Region {
     pub x: f32,
     pub y: f32,
@@ -46,16 +47,46 @@ pub struct Region {
     pub height: f32,
 }
 
+impl Region {
+    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Region {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+    pub fn row(x: f32, y: f32, width: f32, height: f32) -> impl Iterator<Item = Region> {
+        RegionRow {
+            next_region: Region::new(x, y, width, height),
+        }
+    }
+}
+#[derive(Copy, Clone, PartialEq)]
+struct RegionRow {
+    next_region: Region,
+}
+
+impl Iterator for RegionRow {
+    type Item = Region;
+
+    fn next(&mut self) -> Option<Region> {
+        let current_region = self.next_region;
+        self.next_region.x += self.next_region.width;
+        Some(current_region)
+    }
+}
+
 #[allow(dead_code)]
 impl SpriteBatch {
-    pub fn new(texture_map: HashMap<String, Texture<Dim2, NormRGBA8UI>>) -> Self {
+    pub fn new(texture_map: IndexMap<String, Texture<Dim2, NormRGBA8UI>>) -> Self {
         let program = Program::<Semantics, (), ShaderInterface>::from_strings(None, VS, None, FS)
             .expect("shader failed to compile")
             .program;
         let mut param_map = HashMap::new();
-            for (k, _v) in &texture_map{
-                param_map.insert(k.clone(), (Vec::new(), Vec::new(), None));
-            }
+        for (k, _v) in &texture_map {
+            param_map.insert(k.clone(), (Vec::new(), Vec::new(), None));
+        }
         SpriteBatch {
             texture_map,
             program,
@@ -101,8 +132,6 @@ impl SpriteBatch {
             .map(|e| e + self.param_map.get(&texture_name).unwrap().0.len() as u32)
             .collect();
 
-
-
         let mut vertices: Vec<Vertex> = [(v0, t0), (v1, t1), (v2, t2), (v3, t3)]
             .iter()
             .map(|(v, t)| {
@@ -115,8 +144,18 @@ impl SpriteBatch {
             })
             .collect();
 
-        &mut self.param_map.get_mut(&texture_name).unwrap().0.append(&mut vertices);
-        &mut self.param_map.get_mut(&texture_name).unwrap().1.append(&mut indices);
+        &mut self
+            .param_map
+            .get_mut(&texture_name)
+            .unwrap()
+            .0
+            .append(&mut vertices);
+        &mut self
+            .param_map
+            .get_mut(&texture_name)
+            .unwrap()
+            .1
+            .append(&mut indices);
     }
     pub fn draw<'a, C>(
         &mut self,
@@ -126,16 +165,16 @@ impl SpriteBatch {
     ) where
         C: GraphicsContext,
     {
-        for (k,v) in &self.texture_map{
+        for (k, v) in &self.texture_map {
             let params = &self.param_map.get(k).unwrap();
             if let Some(vao) = &params.2 {
                 let bound_texture = pipeline.bind_texture(v);
-    
+
                 // Start shading with our program.
                 shading_gate.shade(&self.program, |iface, mut rdr_gate| {
                     iface.u_transform.update(to_4x4(&transform));
                     iface.u_texture_sampler.update(&bound_texture);
-    
+
                     // Start rendering things with the default render state provided by luminance.
                     rdr_gate.render(
                         &RenderState::default().set_blending((
@@ -143,20 +182,17 @@ impl SpriteBatch {
                             Factor::SrcAlpha,
                             Factor::SrcAlphaComplement,
                         )),
-                        |mut tess_gate| {
-                            tess_gate.render(vao)
-                        },
+                        |mut tess_gate| tess_gate.render(vao),
                     );
                 });
             }
         }
-        
     }
     pub fn prepare<C>(&mut self, context: &mut C)
     where
         C: GraphicsContext,
     {
-        for (k,v) in &mut self.param_map{
+        for (k, v) in &mut self.param_map {
             v.2 = Some(
                 TessBuilder::new(context)
                     .add_vertices(v.0.as_slice())
@@ -165,11 +201,10 @@ impl SpriteBatch {
                     .build()
                     .unwrap(),
             );
-    
+
             v.0.clear();
             v.1.clear();
         }
-        
     }
 }
 
@@ -196,4 +231,8 @@ pub fn orthographic_projection(width: u32, height: u32) -> [f32; 16] {
         Matrix4::new_orthographic(0.0, width as f32, height as f32, 0.0, -0.1, -100.0).as_slice(),
     );
     matrix
+}
+
+pub fn orthographic_projection_matrix(width: u32, height: u32) -> Matrix4<f32> {
+    Matrix4::new_orthographic(0.0, width as f32, height as f32, 0.0, -0.1, -100.0)
 }

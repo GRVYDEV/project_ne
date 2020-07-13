@@ -4,7 +4,7 @@ use luminance::context::GraphicsContext;
 use luminance::framebuffer::Framebuffer;
 use luminance::texture::Dim2;
 use luminance_glfw::{Action, GlfwSurface, Key, Surface, WindowDim, WindowEvent, WindowOpt};
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 pub enum GameEvent {
     WindowEvent(WindowEvent),
 }
@@ -14,7 +14,7 @@ pub trait Game {
     where
         C: GraphicsContext;
 
-    fn update(&mut self);
+    fn update(&mut self, key_buffer: &HashSet<Key>);
 
     fn draw<C>(
         &mut self,
@@ -37,6 +37,7 @@ where
     let mut resize = false;
     let mut time_buffer = Duration::new(0, 0);
     let mut framebuffer = surface.back_buffer().unwrap();
+    let mut keybuffer: HashSet<glfw::Key> = HashSet::new();
     'app: loop {
         let delta_time = std::time::Instant::now().duration_since(last_frame);
 
@@ -47,9 +48,18 @@ where
                 WindowEvent::Close | WindowEvent::Key(Key::Escape, _, Action::Release, _) => {
                     break 'app
                 }
-                WindowEvent::FramebufferSize(_, _) => {
-                    //game.process_event(GameEvent::WindowEvent(WindowEvent::Resized(size)));
+                WindowEvent::FramebufferSize(width, height) => {
+                    game.process_event(GameEvent::WindowEvent(WindowEvent::FramebufferSize(
+                        width, height,
+                    )));
                     resize = true;
+                }
+                WindowEvent::Key(key, _, action, _) => {
+                    if action == Action::Press {
+                        keybuffer.insert(key);
+                    } else if action == Action::Release {
+                        keybuffer.remove(&key);
+                    }
                 }
 
                 _ => {}
@@ -65,9 +75,9 @@ where
 
         time_buffer += delta_time;
 
-        if time_buffer > Duration::from_secs_f64(0.16) {
-            time_buffer -= Duration::from_secs_f64(0.16);
-            game.update();
+        if time_buffer > Duration::from_secs_f64(16.0 / 1000.0) {
+            time_buffer -= Duration::from_secs_f64(16.0 / 1000.0);
+            game.update(&keybuffer);
         }
     }
     // event_loop.run(move |event, target, control_flow| {
