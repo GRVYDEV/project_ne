@@ -22,7 +22,7 @@ luminance-glyph = "0.1"
 glfw = "0.34"
 image = {version = "0.23.6", features = ["png"] }
 [dependencies.tetra]
-path = "../tetra"
+version = "0.4"
 features = ["sdl2_static_link", "sdl2_bundled"]
 
 [profile.dev.package."*"]

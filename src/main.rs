@@ -362,15 +362,12 @@ impl State for GameState {
         Ok(())
     }
 }
-fn draw_layer_new<C>(
-    context: &mut C,
+fn draw_layer_new(
+    batch: &mut SpriteBatch,
     lyr: tiled::Layer,
-    texture_map: &mut HashMap<String, SpriteBatch>,
     sprite_map: &HashMap<u32, Sprite>,
-    buffer: &Framebuffer<Dim2, (), ()>,
-) where
-    C: GraphicsContext,
-{
+    z_val: &f32,
+) {
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         for (x, &tile) in row.iter().enumerate() {
             if tile.gid == 0 {
@@ -384,14 +381,13 @@ fn draw_layer_new<C>(
                 origin.x = 8.0;
                 origin.y = 8.0;
             }
-            if sprite.texture == "terrain_2" {
-                texture_map.get_mut(&sprite.texture).unwrap().queue_sprite(
-                    Vector2::new(x as f32 * 16.0, y as f32 * 16.0),
-                    sprite.rect.clone(),
-                );
-            }
 
-            
+            batch.queue_sprite(
+                sprite.texture.clone(),
+                Vector3::new(x as f32 * 16.0, y as f32 * 16.0, *z_val),
+                sprite.rect.clone(),
+            );
+
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
                 rotation += 180.0;
@@ -406,9 +402,9 @@ fn draw_layer_new<C>(
     }
 }
 pub struct MyGameState {
-    texture: HashMap<String, SpriteBatch>,
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<tiled::Layer>,
+    batch: SpriteBatch,
 }
 impl GameState {}
 
@@ -421,8 +417,9 @@ impl Game for MyGameState {
         for (k, v) in TILESETS {
             file_to_texture
                 .entry(k.to_string())
-                .or_insert(SpriteBatch::new(load_texture_from_bytes(context, v)));
+                .or_insert(load_texture_from_bytes(context, v));
         }
+        let batch = SpriteBatch::new(file_to_texture);
 
         let tiled_data = parse(&include_bytes!("../resources/map/map5.tmx")[..]).unwrap();
         //fs::write("map.ron", format!("{:#?}", &tiled_data.clone())).unwrap();
@@ -447,24 +444,10 @@ impl Game for MyGameState {
                 if tile.objectgroup.is_some() {
                     object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
                 }
-                // if tile.animation.is_some() && id_to_rect.is_empty() {
-                //     let mut id = 0;
-                //     for x in 0..tileset_sprite_rows {
-                //         for y in 0..tileset_sprite_columns {
-                //             let sprite_w = tile_width as f32;
-                //             let sprite_h = tile_height as f32;
-                //             let pos_x = (x * tile_width) as f32;
-                //             let pos_y = (y * tile_height) as f32;
-                //             Rectangle::new(pos_y, pos_x, sprite_w, sprite_h)
-                //             tile_sprites.entry(gid).or_insert(sprite);
-                //             id += 1;
-                //         }
-                //     }
-                // }
             }
             let mut id = 0;
-            for x in 0..tileset_sprite_rows {
-                for y in 0..tileset_sprite_columns {
+            for y in 0..tileset_sprite_rows {
+                for x in 0..tileset_sprite_columns {
                     let sprite_w = tile_width as f32;
                     let sprite_h = tile_height as f32;
                     let pos_x = (x * tile_width) as f32;
@@ -474,8 +457,8 @@ impl Game for MyGameState {
                         width: sprite_w,
                         height: sprite_h,
                         rect: Region {
-                            y: pos_y,
                             x: pos_x,
+                            y: pos_y,
                             width: sprite_w,
                             height: sprite_h,
                         },
@@ -492,9 +475,9 @@ impl Game for MyGameState {
         }
         let layers = tiled_data.layers;
         MyGameState {
-            texture: file_to_texture,
             sprite_map: tile_sprites,
             layers: layers,
+            batch,
         }
     }
 
@@ -504,17 +487,25 @@ impl Game for MyGameState {
     where
         C: GraphicsContext,
     {
-        draw_layer_new(
-            context,
-            self.layers[0].clone(),
-            &mut self.texture,
-            &self.sprite_map,
-            buffer,
+        let mut z: f32 = 50.0;
+        for layer in &mut self.layers {
+            draw_layer_new(&mut self.batch, layer.clone(), &self.sprite_map, &z);
+            z -= 1.0;
+        }
+
+        &mut self.batch.prepare(context);
+
+        context.pipeline_builder().pipeline(
+            &buffer,
+            &PipelineState::default(),
+            |mut pipeline, mut shd_gate| {
+                &mut self.batch.draw(
+                    &mut pipeline,
+                    &mut shd_gate,
+                    orthographic_projection(buffer.width(), buffer.height()),
+                );
+            },
         );
-        self.texture
-            .get_mut("terrain_2")
-            .unwrap()
-            .draw_to_screen(context, buffer);
     }
 
     fn process_event(&mut self, event: GameEvent) {}
