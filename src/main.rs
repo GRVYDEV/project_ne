@@ -12,11 +12,9 @@ mod game;
 mod graphics;
 use game::{run, Game, GameEvent};
 use graphics::load_texture_from_bytes;
-use graphics::SpriteBatch;
 use graphics::orthographic_projection;
 use graphics::Region;
-
-
+use graphics::SpriteBatch;
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -127,7 +125,7 @@ fn draw_layer(
                     ))
                     .origin(origin)
                     .scale(Vec2::new(SCALE, SCALE))
-                    .clip(sprite.rect)
+                    //.clip(sprite.rect)
                     .rotation(rotation.to_radians()),
             );
         }
@@ -185,151 +183,88 @@ fn handle_contact(
     }
 }
 
-impl GameState {
-    fn new(ctx: &mut Context) -> tetra::Result<GameState> {
-        let mut world = World::new();
-        let mut file_to_texture = HashMap::new();
-        for (k, v) in TILESETS {
-            file_to_texture
-                .entry(k.to_string())
-                .or_insert(Texture::from_file_data(ctx, v)?);
-        }
+// impl GameState {
+//     fn new(ctx: &mut Context) -> tetra::Result<GameState> {
+//         let mut world = World::new();
+//         let mut file_to_texture = HashMap::new();
+//         for (k, v) in TILESETS {
+//             file_to_texture
+//                 .entry(k.to_string())
+//                 .or_insert(Texture::from_file_data(ctx, v)?);
+//         }
 
-        let mut character_map = HashMap::new();
-        let mut npc_map = HashMap::new();
-        for (k, v) in PLAYER_SHEETS {
-            character_map.insert(**k, Texture::from_file_data(ctx, v)?);
-        }
-        for (k, v) in NPC_SHEETS {
-            npc_map.insert(**k, Texture::from_file_data(ctx, v)?);
-        }
+//         let mut character_map = HashMap::new();
+//         let mut npc_map = HashMap::new();
+//         for (k, v) in PLAYER_SHEETS {
+//             character_map.insert(**k, Texture::from_file_data(ctx, v)?);
+//         }
+//         for (k, v) in NPC_SHEETS {
+//             npc_map.insert(**k, Texture::from_file_data(ctx, v)?);
+//         }
 
-        let anim_left: Vec<_> = Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
-            .take(3)
-            .collect();
-        let anim_right: Vec<_> = Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
-            .take(3)
-            .collect();
-        let anim_up: Vec<_> = Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
-            .take(3)
-            .collect();
-        let anim_down: Vec<_> = Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
-            .take(3)
-            .collect();
+//         let anim_left: Vec<_> = Rectangle::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
+//             .take(3)
+//             .collect();
+//         let anim_right: Vec<_> = Rectangle::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
+//             .take(3)
+//             .collect();
+//         let anim_up: Vec<_> = Rectangle::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
+//             .take(3)
+//             .collect();
+//         let anim_down: Vec<_> = Rectangle::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
+//             .take(3)
+//             .collect();
 
-        let anim_data = AnimationData {
-            left: Anim::new(&anim_left, Duration::from_secs_f64(ANIM_SPEED)),
-            right: Anim::new(&anim_right, Duration::from_secs_f64(ANIM_SPEED)),
-            up: Anim::new(&anim_up, Duration::from_secs_f64(ANIM_SPEED)),
-            down: Anim::new(&anim_down, Duration::from_secs_f64(ANIM_SPEED)),
-        };
+//         let anim_data = AnimationData {
+//             left: Anim::new(&anim_left, Duration::from_secs_f64(ANIM_SPEED)),
+//             right: Anim::new(&anim_right, Duration::from_secs_f64(ANIM_SPEED)),
+//             up: Anim::new(&anim_up, Duration::from_secs_f64(ANIM_SPEED)),
+//             down: Anim::new(&anim_down, Duration::from_secs_f64(ANIM_SPEED)),
+//         };
 
-        let tiled_data = parse(&include_bytes!("../resources/map/map5.tmx")[..]).unwrap();
-        //fs::write("map.ron", format!("{:#?}", &tiled_data.clone())).unwrap();
+//         let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
+//         let mechanical_world: DefaultMechanicalWorld<f32> =
+//             DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
+//         let mut bodies = DefaultBodySet::new();
+//         let mut colliders = DefaultColliderSet::new();
+//         let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
+//         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
+//         create_map_bounds(&layers[0], &mut colliders, &mut bodies);
 
-        let map = &tiled_data.clone();
-        //fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
-        let tilesets = tiled_data.tilesets;
-        let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
-        let mut gid = tilesets[0].first_gid as u32;
-        for x in 0..tilesets.len() {
-            let map_tileset = tilesets[x].clone();
-            let tile_width = map_tileset.tile_width as i32;
-            let tile_height = map_tileset.tile_height as i32;
-            let tileset_width = &map_tileset.images[0].width;
-            let tileset_height = &map_tileset.images[0].height;
-            let tileset_sprite_columns = tileset_width / tile_width as i32;
-            let tileset_sprite_rows = tileset_height / tile_height as i32;
-            let mut object_map: HashMap<u32, Vec<tiled::Object>> = HashMap::new();
-            let mut id_to_rect: HashMap<u32, Rectangle> = HashMap::new();
-            let mut anim_map: HashMap<u32, Animation> = HashMap::new();
-            for tile in map_tileset.tiles {
-                if tile.objectgroup.is_some() {
-                    object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
-                }
-                // if tile.animation.is_some() && id_to_rect.is_empty() {
-                //     let mut id = 0;
-                //     for x in 0..tileset_sprite_rows {
-                //         for y in 0..tileset_sprite_columns {
-                //             let sprite_w = tile_width as f32;
-                //             let sprite_h = tile_height as f32;
-                //             let pos_x = (x * tile_width) as f32;
-                //             let pos_y = (y * tile_height) as f32;
-                //             Rectangle::new(pos_y, pos_x, sprite_w, sprite_h)
-                //             tile_sprites.entry(gid).or_insert(sprite);
-                //             id += 1;
-                //         }
-                //     }
-                // }
-            }
-            let mut id = 0;
-            for x in 0..tileset_sprite_rows {
-                for y in 0..tileset_sprite_columns {
-                    let sprite_w = tile_width as f32;
-                    let sprite_h = tile_height as f32;
-                    let pos_x = (x * tile_width) as f32;
-                    let pos_y = (y * tile_height) as f32;
-                    let objects = object_map.remove(&id).clone();
-                    let sprite = Sprite {
-                        width: sprite_w,
-                        height: sprite_h,
-                        rect: Rectangle::new(pos_y, pos_x, sprite_w, sprite_h),
-                        pos: Vec2::new(pos_x, pos_y),
-                        texture: map_tileset.name.clone(),
-                        collision_objects: objects,
-                    };
+//         // spawn(
+//         //     &mut colliders,
+//         //     &mut bodies,
+//         //     &mut world,
+//         //     (&(npc_map.len() - 1), &(character_map.len() - 1)),
+//         //     &anim_data,
+//         //     map,
+//         //     ctx,
+//         // );
 
-                    tile_sprites.entry(gid).or_insert(sprite);
-                    gid += 1;
-                    id += 1;
-                }
-            }
-        }
+//         let top_layers = &layers[1..];
 
-        let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
-        let mechanical_world: DefaultMechanicalWorld<f32> =
-            DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
-        let mut bodies = DefaultBodySet::new();
-        let mut colliders = DefaultColliderSet::new();
-        let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
-        let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
-        let layers = tiled_data.layers;
-        create_map_bounds(&layers[0], &mut colliders, &mut bodies);
+//         // for layer in top_layers {
+//         //     spawn_ecs_tiles(layer, &mut world, &tile_sprites);
+//         // }
 
-        spawn(
-            &mut colliders,
-            &mut bodies,
-            &mut world,
-            (&(npc_map.len() - 1), &(character_map.len() - 1)),
-            &anim_data,
-            map,
-            ctx,
-        );
+//         // create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
 
-        let top_layers = &layers[1..];
-
-        for layer in top_layers {
-            spawn_ecs_tiles(layer, &mut world, &tile_sprites);
-        }
-
-        create_physics_world(&layers, &tile_sprites, &mut colliders, &mut bodies);
-
-        Ok(GameState {
-            characters: character_map,
-            npcs: npc_map,
-            world,
-            sprite_map: tile_sprites,
-            layers: layers,
-            texture_map: file_to_texture,
-            mechanical_world: mechanical_world,
-            geometrical_world: geometrical_world,
-            body_set: bodies,
-            collider_set: colliders,
-            force_gen_set: force_generators,
-            constraint_set: joint_constraints,
-        })
-    }
-}
+//         Ok(GameState {
+//             characters: character_map,
+//             npcs: npc_map,
+//             world,
+//             sprite_map: tile_sprites,
+//             layers: layers,
+//             texture_map: file_to_texture,
+//             mechanical_world: mechanical_world,
+//             geometrical_world: geometrical_world,
+//             body_set: bodies,
+//             collider_set: colliders,
+//             force_gen_set: force_generators,
+//             constraint_set: joint_constraints,
+//         })
+//     }
+// }
 
 impl State for GameState {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
@@ -428,11 +363,14 @@ impl State for GameState {
     }
 }
 fn draw_layer_new<C>(
+    context: &mut C,
     lyr: tiled::Layer,
-    texture_map: &HashMap<String, lum_Texture<Dim2, NormRGBA8UI>>,
+    texture_map: &mut HashMap<String, SpriteBatch>,
     sprite_map: &HashMap<u32, Sprite>,
-   
-) {
+    buffer: &Framebuffer<Dim2, (), ()>,
+) where
+    C: GraphicsContext,
+{
     for (y, row) in lyr.tiles.iter().enumerate().clone() {
         for (x, &tile) in row.iter().enumerate() {
             if tile.gid == 0 {
@@ -446,8 +384,14 @@ fn draw_layer_new<C>(
                 origin.x = 8.0;
                 origin.y = 8.0;
             }
+            if sprite.texture == "terrain_2" {
+                texture_map.get_mut(&sprite.texture).unwrap().queue_sprite(
+                    Vector2::new(x as f32 * 16.0, y as f32 * 16.0),
+                    sprite.rect.clone(),
+                );
+            }
 
-            let texture = texture_map.get(&sprite.texture).unwrap();
+            
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
                 rotation += 180.0;
@@ -458,13 +402,13 @@ fn draw_layer_new<C>(
             if tile.flip_v {
                 rotation += 0.0;
             }
-            
-            
         }
     }
 }
 pub struct MyGameState {
-    texture: HashMap<String, SpriteBatch>
+    texture: HashMap<String, SpriteBatch>,
+    sprite_map: HashMap<u32, Sprite>,
+    layers: Vec<tiled::Layer>,
 }
 impl GameState {}
 
@@ -475,13 +419,82 @@ impl Game for MyGameState {
     {
         let mut file_to_texture = HashMap::new();
         for (k, v) in TILESETS {
-            
             file_to_texture
                 .entry(k.to_string())
                 .or_insert(SpriteBatch::new(load_texture_from_bytes(context, v)));
         }
+
+        let tiled_data = parse(&include_bytes!("../resources/map/map5.tmx")[..]).unwrap();
+        //fs::write("map.ron", format!("{:#?}", &tiled_data.clone())).unwrap();
+
+        let map = &tiled_data.clone();
+        //fs::write("bar.json", format!("{:#?}", tiled_data)).unwrap();
+        let tilesets = tiled_data.tilesets;
+        let mut tile_sprites: HashMap<u32, Sprite> = HashMap::new();
+        let mut gid = tilesets[0].first_gid as u32;
+        for x in 0..tilesets.len() {
+            let map_tileset = tilesets[x].clone();
+            let tile_width = map_tileset.tile_width as i32;
+            let tile_height = map_tileset.tile_height as i32;
+            let tileset_width = &map_tileset.images[0].width;
+            let tileset_height = &map_tileset.images[0].height;
+            let tileset_sprite_columns = tileset_width / tile_width as i32;
+            let tileset_sprite_rows = tileset_height / tile_height as i32;
+            let mut object_map: HashMap<u32, Vec<tiled::Object>> = HashMap::new();
+            let mut id_to_rect: HashMap<u32, Rectangle> = HashMap::new();
+            let mut anim_map: HashMap<u32, Animation> = HashMap::new();
+            for tile in map_tileset.tiles {
+                if tile.objectgroup.is_some() {
+                    object_map.insert(tile.id, tile.objectgroup.unwrap().objects);
+                }
+                // if tile.animation.is_some() && id_to_rect.is_empty() {
+                //     let mut id = 0;
+                //     for x in 0..tileset_sprite_rows {
+                //         for y in 0..tileset_sprite_columns {
+                //             let sprite_w = tile_width as f32;
+                //             let sprite_h = tile_height as f32;
+                //             let pos_x = (x * tile_width) as f32;
+                //             let pos_y = (y * tile_height) as f32;
+                //             Rectangle::new(pos_y, pos_x, sprite_w, sprite_h)
+                //             tile_sprites.entry(gid).or_insert(sprite);
+                //             id += 1;
+                //         }
+                //     }
+                // }
+            }
+            let mut id = 0;
+            for x in 0..tileset_sprite_rows {
+                for y in 0..tileset_sprite_columns {
+                    let sprite_w = tile_width as f32;
+                    let sprite_h = tile_height as f32;
+                    let pos_x = (x * tile_width) as f32;
+                    let pos_y = (y * tile_height) as f32;
+                    let objects = object_map.remove(&id).clone();
+                    let sprite = Sprite {
+                        width: sprite_w,
+                        height: sprite_h,
+                        rect: Region {
+                            y: pos_y,
+                            x: pos_x,
+                            width: sprite_w,
+                            height: sprite_h,
+                        },
+                        pos: Vector2::new(pos_x, pos_y),
+                        texture: map_tileset.name.clone(),
+                        collision_objects: objects,
+                    };
+
+                    tile_sprites.entry(gid).or_insert(sprite);
+                    gid += 1;
+                    id += 1;
+                }
+            }
+        }
+        let layers = tiled_data.layers;
         MyGameState {
-            texture: file_to_texture
+            texture: file_to_texture,
+            sprite_map: tile_sprites,
+            layers: layers,
         }
     }
 
@@ -491,11 +504,17 @@ impl Game for MyGameState {
     where
         C: GraphicsContext,
     {
-        self.texture.get_mut("terrain_2").unwrap().queue_sprite(Vector2::new(0.0, 0.0), Region{x: 16.0, y: 48.0, width: 16.0, height: 16.0});
-        self.texture.get_mut("terrain_2").unwrap().prepare(context);
-        context.pipeline_builder().pipeline(&buffer, &PipelineState::default(), |mut pipeline, mut shd_gate|{
-            self.texture.get_mut("terrain_2").unwrap().draw(&mut pipeline, &mut shd_gate,  orthographic_projection(buffer.width(), buffer.height()));
-        });
+        draw_layer_new(
+            context,
+            self.layers[0].clone(),
+            &mut self.texture,
+            &self.sprite_map,
+            buffer,
+        );
+        self.texture
+            .get_mut("terrain_2")
+            .unwrap()
+            .draw_to_screen(context, buffer);
     }
 
     fn process_event(&mut self, event: GameEvent) {}

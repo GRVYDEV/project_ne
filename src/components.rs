@@ -1,4 +1,6 @@
 
+use crate::graphics::Region;
+use nalgebra::Vector2;
 use hecs::World;
 
 
@@ -85,8 +87,8 @@ pub struct GameState {
 pub struct Sprite {
     pub width: f32,
     pub height: f32,
-    pub rect: Rectangle,
-    pub pos: Vec2<f32>,
+    pub rect: Region,
+    pub pos: Vector2<f32>,
     pub texture: String,
     pub collision_objects: Option<Vec<tiled::Object>>,
     //animation: Option<Animation>,
@@ -146,7 +148,7 @@ impl Draw {
                         .position(Vec2::new(position.x + 16.0, position.y - 16.0))
                         .origin(Vec2::new(8.0, 8.0))
                         .scale(Vec2::new(SCALE, SCALE))
-                        .clip(tile.sprite.rect)
+                        //.clip(tile.sprite.rect)
                         .rotation(tile.rotation.to_radians()),
                 );
             }

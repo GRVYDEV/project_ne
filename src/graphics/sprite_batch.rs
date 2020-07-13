@@ -5,6 +5,8 @@ use luminance::pipeline::Pipeline as LuminancePipeline;
 use luminance::pipeline::ShadingGate;
 use luminance::pixel::NormRGBA8UI;
 
+use luminance::framebuffer::Framebuffer;
+use luminance::pipeline::PipelineState;
 use luminance::pixel::NormUnsigned;
 use luminance::render_state::RenderState;
 use luminance::shader::program::Program;
@@ -37,7 +39,7 @@ pub struct SpriteBatch {
 fn to_4x4(array: &[f32; 16]) -> [[f32; 4]; 4] {
     unsafe { *(array as *const _ as *const _) }
 }
-
+#[derive(Clone, Debug)]
 pub struct Region {
     pub x: f32,
     pub y: f32,
@@ -59,12 +61,34 @@ impl SpriteBatch {
             tess: None,
         }
     }
+    pub fn draw_to_screen<C>(
+        &mut self,
+        context: &mut C,
+        buffer: &Framebuffer<Dim2, (), ()>,
+        
+    ) where
+        C: GraphicsContext,
+    {
+        
+        self.prepare(context);
+        context.pipeline_builder().pipeline(
+            &buffer,
+            &PipelineState::default(),
+            |mut pipeline, mut shd_gate| {
+                self.draw(
+                    &mut pipeline,
+                    &mut shd_gate,
+                    orthographic_projection(buffer.width(), buffer.height()),
+                );
+            },
+        );
+    }
     pub fn queue_sprite(&mut self, position: Vector2<f32>, region: Region) {
         let region2 = Region {
             x: region.x,
             y: region.y,
-            height: region.height * 2.0,
-            width: region.width * 2.0,
+            height: region.height,
+            width: region.width ,
         };
         let texture_size =
             Vector2::new(self.texture.size()[0] as f32, self.texture.size()[1] as f32);
