@@ -16,7 +16,7 @@ use luminance::texture::Dim2;
 use luminance::texture::Texture;
 use luminance_derive::UniformInterface;
 use luminance_derive::{Semantics, Vertex};
-use nalgebra::base::{Matrix4, Vector2, Vector3};
+use nalgebra::{Rotation2, base::{Matrix4, Vector2, Vector3}};
 use std::collections::HashMap;
 
 const VS: &'static str = include_str!("./vertex_sprite_batch.glsl");
@@ -94,13 +94,15 @@ impl SpriteBatch {
         }
     }
 
-    pub fn queue_sprite(&mut self, texture_name: String, position: Vector3<f32>, region: Region) {
+    pub fn queue_sprite(&mut self, texture_name: String, position: Vector3<f32>, region: Region, rotation: f32) {
         let region2 = Region {
             x: region.x,
             y: region.y,
             height: region.height,
             width: region.width,
         };
+
+        let rotation: Rotation2<f32> = Rotation2::new(rotation);
 
         let texture = self.texture_map.get(&texture_name).unwrap();
         let texture_size = Vector2::new(texture.size()[0] as f32, texture.size()[1] as f32);
@@ -144,6 +146,7 @@ impl SpriteBatch {
             })
             .collect();
 
+            
         &mut self
             .param_map
             .get_mut(&texture_name)

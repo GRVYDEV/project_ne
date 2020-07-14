@@ -386,11 +386,7 @@ fn draw_layer_new(
                 origin.y = 8.0;
             }
 
-            batch.queue_sprite(
-                sprite.texture.clone(),
-                Vector3::new(x as f32 * 16.0, y as f32 * 16.0, *z_val),
-                sprite.rect.clone(),
-            );
+            
 
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
@@ -402,6 +398,13 @@ fn draw_layer_new(
             if tile.flip_v {
                 rotation += 0.0;
             }
+
+            batch.queue_sprite(
+                sprite.texture.clone(),
+                Vector3::new(x as f32 * 16.0, y as f32 * 16.0, *z_val),
+                sprite.rect.clone(),
+                rotation.to_radians()
+            );
         }
     }
 }
@@ -478,8 +481,8 @@ impl Game for MyGameState {
                 }
             }
         }
-        let mut camera = Camera::new(1600.0, 900.0);
-        camera.set_position(Vector2::new(1600.0 / 2.0, 900.0 / 2.0));
+        let mut camera = Camera::new(1600.0/ 2.0, 900.0 / 2.0);
+        camera.set_position(Vector2::new(800.0 / 2.0, 800.0 / 2.0));
         let layers = tiled_data.layers;
         MyGameState {
             sprite_map: tile_sprites,
@@ -492,16 +495,16 @@ impl Game for MyGameState {
     fn update(&mut self, key_buffer: &HashSet<glfw::Key>) {
         let mut translate = Vector2::new(0.0, 0.0);
         if key_buffer.contains(&glfw::Key::W) {
-            translate.y += 40.0;
+            translate.y += 20.0;
         }
         if key_buffer.contains(&glfw::Key::A) {
-            translate.x += 40.0;
+            translate.x += 20.0;
         }
         if key_buffer.contains(&glfw::Key::D) {
-            translate.x -= 40.0;
+            translate.x -= 20.0;
         }
         if key_buffer.contains(&glfw::Key::S) {
-            translate.y -= 40.0;
+            translate.y -= 20.0;
         }
         self.camera.translate(translate.x, translate.y);
     }
@@ -531,7 +534,8 @@ impl Game for MyGameState {
 
     fn process_event(&mut self, event: GameEvent) {
         if let GameEvent::WindowEvent(WindowEvent::FramebufferSize(width, height)) = event {
-            self.camera.set_size(width as u32, height as u32);
+            self.camera.set_size(width as u32 / 2, height as u32 / 2);
+         
         }
     }
 }
