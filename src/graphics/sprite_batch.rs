@@ -16,7 +16,10 @@ use luminance::texture::Dim2;
 use luminance::texture::Texture;
 use luminance_derive::UniformInterface;
 use luminance_derive::{Semantics, Vertex};
-use nalgebra::{Rotation2, base::{Matrix4, Vector2, Vector3}};
+use nalgebra::{
+    base::{Matrix4, Vector2, Vector3},
+    Rotation2,
+};
 use std::collections::HashMap;
 
 const VS: &'static str = include_str!("./vertex_sprite_batch.glsl");
@@ -94,7 +97,13 @@ impl SpriteBatch {
         }
     }
 
-    pub fn queue_sprite(&mut self, texture_name: String, position: Vector3<f32>, region: Region, rotation: f32) {
+    pub fn queue_sprite(
+        &mut self,
+        texture_name: &str,
+        position: Vector3<f32>,
+        region: Region,
+        rotation: f32,
+    ) {
         let region2 = Region {
             x: region.x,
             y: region.y,
@@ -104,7 +113,7 @@ impl SpriteBatch {
 
         let rotation: Rotation2<f32> = Rotation2::new(rotation);
 
-        let texture = self.texture_map.get(&texture_name).unwrap();
+        let texture = self.texture_map.get(texture_name).unwrap();
         let texture_size = Vector2::new(texture.size()[0] as f32, texture.size()[1] as f32);
         let v0 = Vector3::new(position.x, position.y + region2.height, position.z);
         let v1 = Vector3::new(
@@ -131,7 +140,7 @@ impl SpriteBatch {
 
         let mut indices: Vec<u32> = [0, 1, 2, 2, 3, 0]
             .iter()
-            .map(|e| e + self.param_map.get(&texture_name).unwrap().0.len() as u32)
+            .map(|e| e + self.param_map.get(texture_name).unwrap().0.len() as u32)
             .collect();
 
         let mut vertices: Vec<Vertex> = [(v0, t0), (v1, t1), (v2, t2), (v3, t3)]
@@ -146,16 +155,15 @@ impl SpriteBatch {
             })
             .collect();
 
-            
         &mut self
             .param_map
-            .get_mut(&texture_name)
+            .get_mut(texture_name)
             .unwrap()
             .0
             .append(&mut vertices);
         &mut self
             .param_map
-            .get_mut(&texture_name)
+            .get_mut(texture_name)
             .unwrap()
             .1
             .append(&mut indices);
@@ -196,17 +204,20 @@ impl SpriteBatch {
         C: GraphicsContext,
     {
         for (k, v) in &mut self.param_map {
-            v.2 = Some(
-                TessBuilder::new(context)
-                    .add_vertices(v.0.as_slice())
-                    .set_indices(v.1.clone())
-                    .set_mode(Mode::Triangle)
-                    .build()
-                    .unwrap(),
-            );
+            if v.0.len() == 0 || v.1.len() == 0 {
+            } else {
+                v.2 = Some(
+                    TessBuilder::new(context)
+                        .add_vertices(v.0.as_slice())
+                        .set_indices(v.1.clone())
+                        .set_mode(Mode::Triangle)
+                        .build()
+                        .unwrap(),
+                );
 
-            v.0.clear();
-            v.1.clear();
+                v.0.clear();
+                v.1.clear();
+            }
         }
     }
 }

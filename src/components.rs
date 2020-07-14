@@ -1,8 +1,6 @@
-
-use crate::graphics::Region;
-use nalgebra::Vector2;
+use crate::graphics::{Region, SpriteBatch};
 use hecs::World;
-
+use nalgebra::{Vector2, Vector3};
 
 use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
@@ -11,7 +9,7 @@ use nphysics2d::object::{DefaultBodyHandle, DefaultBodySet, DefaultColliderSet};
 use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 
 use rand::Rng;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 
 use std::time::Duration;
 use tetra::graphics;
@@ -19,17 +17,45 @@ use tetra::graphics;
 use tetra::graphics::{animation::Animation, DrawParams, Rectangle, Texture};
 use tetra::Context;
 
-
 use tetra::math::Vec2;
 
 use crate::game::Game;
 
 use tiled::Layer;
-
+use luminance::context::GraphicsContext;
 use crate::SCALE;
 pub struct SpawnBounds {
     pub x: (f32, f32),
     pub y: (f32, f32),
+}
+
+pub struct Graphics{
+    delta_time: Duration,
+    keybuffer: HashSet<glfw::Key>
+}
+
+impl Graphics{
+    pub fn new(keybuffer: &HashSet<glfw::Key>, delta_time: Duration) -> Graphics{
+        Graphics{
+            keybuffer: keybuffer.clone(),
+            delta_time
+        }
+    }
+    pub fn get_delta_time(&self) -> Duration{
+        self.delta_time
+    }
+    pub fn get_keybuffer(&self) -> &HashSet<glfw::Key>{
+        &self.keybuffer
+    }
+}
+
+pub struct PhysicsWorld {
+    pub mechanical_world: DefaultMechanicalWorld<f32>,
+    pub geometrical_world: DefaultGeometricalWorld<f32>,
+    pub bodies:  DefaultBodySet<f32>,
+    pub colliders: DefaultColliderSet<f32>,
+    pub force_generators: DefaultForceGeneratorSet<f32>,
+    pub joint_constraints: DefaultJointConstraintSet<f32>,
 }
 pub struct LastDirection(pub Direction);
 #[derive(Clone, Copy)]
@@ -82,7 +108,6 @@ pub struct GameState {
     pub npcs: HashMap<usize, Texture>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct Sprite {
     pub width: f32,
@@ -127,30 +152,31 @@ pub struct Draw {
     pub player: Option<CharacterDrawData>,
     pub tile: Option<TileDrawData>,
 }
-
+#[allow(dead_code)]
 impl Draw {
     pub fn draw(
         &self,
-        ctx: &mut Context,
-        texture_map: &HashMap<String, Texture>,
-        characters: (&HashMap<usize, Texture>, &HashMap<usize, Texture>),
+        characters: (&HashMap<usize, &str>, &HashMap<usize, &str>),
         body_set: &DefaultBodySet<f32>,
+        batch: &mut SpriteBatch,
+        z_val: f32,
     ) {
         match self.draw_type {
             DrawType::Tile => {
-                let tile = self.tile.as_ref().unwrap();
-                let texture = texture_map.get(&tile.sprite.texture).unwrap();
-                let position = tile.pos;
-                graphics::draw(
-                    ctx,
-                    texture,
-                    DrawParams::new()
-                        .position(Vec2::new(position.x + 16.0, position.y - 16.0))
-                        .origin(Vec2::new(8.0, 8.0))
-                        .scale(Vec2::new(SCALE, SCALE))
-                        //.clip(tile.sprite.rect)
-                        .rotation(tile.rotation.to_radians()),
-                );
+                // let tile = self.tile.as_ref().unwrap();
+                // let texture = texture_map.get(&tile.sprite.texture).unwrap();
+                // let position = tile.pos;
+                // graphics::draw(
+                //     ctx,
+                //     texture,
+                //     DrawParams::new()
+                //         .position(Vec2::new(position.x + 16.0, position.y - 16.0))
+                //         .origin(Vec2::new(8.0, 8.0))
+                //         .scale(Vec2::new(SCALE, SCALE))
+                //         //.clip(tile.sprite.rect)
+                //         .rotation(tile.rotation.to_radians()),
+                // );
+                unimplemented!("Draw type not implemented yet")
             }
             DrawType::Character => {
                 let player = self.player.as_ref().unwrap().clone();
@@ -164,25 +190,20 @@ impl Draw {
                     Direction::Left => &anim_data.left,
                     Direction::Right => &anim_data.right,
                 };
-                let mut animation = Animation::new(
-                    characters.0.get(&character.0).unwrap().clone(),
-                    anim.frames.clone(),
-                    anim.frame_duration,
-                );
-                animation.set_current_frame_index(anim.frame_index);
+
                 let body = body_set.rigid_body(handle).unwrap();
-                let pos = Vec2::new(
-                    body.position().translation.vector.x * 2.0,
-                    body.position().translation.vector.y * 2.0,
+                let pos = Vector3::new(
+                    body.position().translation.x,
+                    body.position().translation.y,
+                    z_val,
                 );
-                graphics::draw(
-                    ctx,
-                    &animation,
-                    DrawParams::new()
-                        .position(pos)
-                        .origin(Vec2::new(9.5, 27.0))
-                        .scale(Vec2::new(SCALE, SCALE)),
-                );
+
+                batch.queue_sprite(
+                    characters.0.get(&character.0).unwrap(),
+                    pos,
+                    anim.get_current_frame(),
+                    0.0,
+                )
             }
             DrawType::NPC => {
                 let player = self.player.as_ref().unwrap().clone();
@@ -196,26 +217,21 @@ impl Draw {
                     Direction::Left => &anim_data.left,
                     Direction::Right => &anim_data.right,
                 };
-                let mut animation = Animation::new(
-                    characters.1.get(&character.0).unwrap().clone(),
-                    anim.frames.clone(),
-                    anim.frame_duration,
-                );
-                animation.set_current_frame_index(anim.frame_index);
                 let body = body_set.rigid_body(handle).unwrap();
-                let pos = Vec2::new(
-                    body.position().translation.vector.x * 2.0,
-                    body.position().translation.vector.y * 2.0,
+                let pos = Vector3::new(
+                    body.position().translation.x,
+                    body.position().translation.y,
+                    z_val,
                 );
-                graphics::draw(
-                    ctx,
-                    &animation,
-                    DrawParams::new()
-                        .position(pos)
-                        .origin(Vec2::new(9.5, 27.0))
-                        .scale(Vec2::new(SCALE, SCALE)),
-                );
+
+                batch.queue_sprite(
+                    characters.1.get(&character.0).unwrap(),
+                    pos,
+                    anim.get_current_frame(),
+                    0.0,
+                )
             }
+
             _ => unimplemented!("Invalid Draw Type"),
         }
     }
@@ -234,14 +250,14 @@ pub struct EntityAnimation {
 
 #[derive(Clone, Debug)]
 pub struct Anim {
-    pub frames: Vec<Rectangle>,
+    pub frames: Vec<Region>,
     pub frame_duration: Duration,
     pub time_elapsed: Duration,
     pub frame_index: usize,
 }
 
 impl Anim {
-    pub fn new(frames: &[Rectangle], frame_duration: Duration) -> Anim {
+    pub fn new(frames: &[Region], frame_duration: Duration) -> Anim {
         Anim {
             frames: frames.to_vec(),
             frame_duration,
@@ -258,6 +274,10 @@ impl Anim {
                 self.frame_index = 0;
             }
         }
+    }
+
+    pub fn get_current_frame(&self) -> Region {
+        self.frames[self.frame_index]
     }
 }
 #[derive(Clone)]

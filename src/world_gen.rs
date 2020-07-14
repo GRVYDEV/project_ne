@@ -3,9 +3,8 @@ use crate::npc::spawn_npcs;
 use crate::player::new_player;
 use nalgebra::base::Vector2;
 use nalgebra::geometry::Isometry2;
-
 use ncollide2d::pipeline::CollisionGroups;
-
+use luminance::context::GraphicsContext;
 use hecs::World;
 use ncollide2d::shape::{Cuboid, ShapeHandle};
 use nphysics2d::object::{
@@ -125,15 +124,15 @@ pub fn create_map_bounds(
         }
     }
 }
-pub fn spawn(
+pub fn spawn<C>(
     colliders: &mut DefaultColliderSet<f32>,
     bodies: &mut DefaultBodySet<f32>,
     world: &mut World,
     sheet_lens: (&usize, &usize),
     anim_data: &AnimationData,
     map: &tiled::Map,
-    ctx: &mut Context,
-) {
+    ctx: &mut C,
+) where C:GraphicsContext {
     if !map.object_groups.is_empty() {
         for object_group in &map.object_groups {
             for object in &object_group.objects {
@@ -164,7 +163,7 @@ pub fn spawn(
                         colliders,
                         anim_data.clone(),
                         &pos,
-                    ).expect("Failed to create player");
+                    );
                 }
             }
         }

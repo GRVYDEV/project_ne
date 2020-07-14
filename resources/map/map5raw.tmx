@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.4" tiledversion="1.4.1" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="2">
+<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="3">
  <tileset firstgid="1" name="outdoors" tilewidth="16" tileheight="16" tilecount="1248" columns="52">
-  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/outside.png" width="832" height="384"/>
+  <image source="tilesets/outside.png" width="832" height="384"/>
   <tile id="757">
    <objectgroup draworder="index" id="2">
     <object id="1" x="8" y="-4" width="9" height="18"/>
@@ -59,7 +59,7 @@
   </tile>
  </tileset>
  <tileset firstgid="1249" name="terrain_2" tilewidth="16" tileheight="16" tilecount="1482" columns="39">
-  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/terrain.png" width="624" height="608"/>
+  <image source="tilesets/terrain_2.png" width="624" height="608"/>
   <tile id="586">
    <objectgroup draworder="index" id="2">
     <object id="6" name="Test" x="12" y="0" width="4" height="16"/>
@@ -67,7 +67,7 @@
   </tile>
  </tileset>
  <tileset firstgid="2731" name="chest-sheet" tilewidth="32" tileheight="32" tilecount="144" columns="12">
-  <image source="../../../Desktop/Game Dev/AnimationSheets/chest-sheet.png" width="384" height="384"/>
+  <image source="tilesets/chest-sheet.png" width="384" height="384"/>
   <tile id="0">
    <objectgroup draworder="index" id="2">
     <object id="1" x="3" y="20" width="27" height="20"/>
@@ -89,7 +89,7 @@
   </tile>
  </tileset>
  <tileset firstgid="2875" name="castle" tilewidth="16" tileheight="16" tilecount="578" columns="34">
-  <image source="../../../Desktop/Game Dev/TimeFantasy_TILES_6.24.17/TILESETS/castle.png" width="544" height="272"/>
+  <image source="tilesets/castle.png" width="544" height="272"/>
   <tile id="273">
    <objectgroup draworder="index" id="2">
     <object id="1" x="0" y="0" width="16" height="16"/>
@@ -173,6 +173,7 @@
     <property name="count" type="int" value="50"/>
    </properties>
   </object>
+  <object id="2" type="PlayerSpawn" x="736" y="1120" width="16" height="16"/>
  </objectgroup>
  <layer id="3" name="Tile Layer 3" width="100" height="100">
   <data encoding="base64">

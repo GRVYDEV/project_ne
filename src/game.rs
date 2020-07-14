@@ -14,7 +14,7 @@ pub trait Game {
     where
         C: GraphicsContext;
 
-    fn update(&mut self, key_buffer: &HashSet<Key>);
+    fn update(&mut self, key_buffer: &HashSet<Key>, delta_time: Duration);
 
     fn draw<C>(
         &mut self,
@@ -77,7 +77,7 @@ where
 
         if time_buffer > Duration::from_secs_f64(16.0 / 1000.0) {
             time_buffer -= Duration::from_secs_f64(16.0 / 1000.0);
-            game.update(&keybuffer);
+            game.update(&keybuffer, delta_time);
         }
     }
     // event_loop.run(move |event, target, control_flow| {

@@ -47,22 +47,33 @@ const TILESETS: &[(&str, &[u8])] = &[
         "castle",
         include_bytes!("../resources/map/tilesets/castle.png"),
     ),
+    ("Wizard", include_bytes!("../resources/Wizard-Sheet.png")),
+    ("Viking", include_bytes!("../resources/Viking-Sheet.png")),
+    (
+        "Fire-Man",
+        include_bytes!("../resources/Fire-Man-Sheet.png"),
+    ),
+    (
+        "Red-Hair",
+        include_bytes!("../resources/Red-Hair-Sheet.png"),
+    ),
+    ("NPC-01", include_bytes!("../resources/NPC01-Sheet.png")),
+    ("NPC-02", include_bytes!("../resources/NPC02-Sheet.png")),
+];
+const PLAYER_SHEETS: &[(&usize, &str)] = &[
+    (&0, "Wizard"),
+    (&1, "Viking"),
+    (&2, "Fire-Man"),
+    (&3, "Red-Hair"),
 ];
 
-const PLAYER_SHEETS: &[(&usize, &[u8])] = &[
-    (&0, include_bytes!("../resources/Wizard-Sheet.png")),
-    (&1, include_bytes!("../resources/Viking-Sheet.png")),
-    (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
-    (&3, include_bytes!("../resources/Red-Hair-Sheet.png")),
-];
-
-const NPC_SHEETS: &[(&usize, &[u8])] = &[
-    (&0, include_bytes!("../resources/Wizard-Sheet.png")),
-    (&1, include_bytes!("../resources/Viking-Sheet.png")),
-    (&2, include_bytes!("../resources/Fire-Man-Sheet.png")),
-    (&3, include_bytes!("../resources/NPC01-Sheet.png")),
-    (&4, include_bytes!("../resources/NPC02-Sheet.png")),
-    (&5, include_bytes!("../resources/Red-Hair-Sheet.png")),
+const NPC_SHEETS: &[(&usize, &str)] = &[
+    (&0, "Wizard"),
+    (&1, "Viking"),
+    (&2, "Fire-Man"),
+    (&3, "NPC-01"),
+    (&4, "NPC-02"),
+    (&5, "Red-Hair"),
 ];
 
 // x width for char = 75
@@ -235,16 +246,6 @@ fn handle_contact(
 //         let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
 //         create_map_bounds(&layers[0], &mut colliders, &mut bodies);
 
-//         // spawn(
-//         //     &mut colliders,
-//         //     &mut bodies,
-//         //     &mut world,
-//         //     (&(npc_map.len() - 1), &(character_map.len() - 1)),
-//         //     &anim_data,
-//         //     map,
-//         //     ctx,
-//         // );
-
 //         let top_layers = &layers[1..];
 
 //         // for layer in top_layers {
@@ -386,8 +387,6 @@ fn draw_layer_new(
                 origin.y = 8.0;
             }
 
-            
-
             let mut rotation: f32 = 0.0;
             if tile.flip_h {
                 rotation += 180.0;
@@ -400,10 +399,10 @@ fn draw_layer_new(
             }
 
             batch.queue_sprite(
-                sprite.texture.clone(),
+                &sprite.texture,
                 Vector3::new(x as f32 * 16.0, y as f32 * 16.0, *z_val),
                 sprite.rect.clone(),
-                rotation.to_radians()
+                rotation.to_radians(),
             );
         }
     }
@@ -412,7 +411,11 @@ pub struct MyGameState {
     sprite_map: HashMap<u32, Sprite>,
     layers: Vec<tiled::Layer>,
     batch: SpriteBatch,
-    camera: Camera,
+
+    world: hecs::World,
+    player_map: HashMap<usize, &'static str>,
+    npc_map: HashMap<usize, &'static str>,
+    physics_world: PhysicsWorld,
 }
 impl GameState {}
 
@@ -481,42 +484,133 @@ impl Game for MyGameState {
                 }
             }
         }
-        let mut camera = Camera::new(1600.0/ 2.0, 900.0 / 2.0);
-        camera.set_position(Vector2::new(800.0 / 2.0, 800.0 / 2.0));
+
+        let mut world = World::new();
+
+        let mut player_map: HashMap<usize, &str> = HashMap::new();
+        let mut npc_map: HashMap<usize, &str> = HashMap::new();
+
+        for (k, v) in NPC_SHEETS {
+            npc_map.insert(**k, *v);
+        }
+
+        for (k, v) in PLAYER_SHEETS {
+            player_map.insert(**k, *v);
+        }
+
+        let anim_left: Vec<_> = Region::row(0.0, 32.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_right: Vec<_> = Region::row(0.0, 64.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_up: Vec<_> = Region::row(0.0, 96.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+        let anim_down: Vec<_> = Region::row(0.0, 0.0, CHAR_WIDTH, CHAR_HEIGHT)
+            .take(3)
+            .collect();
+
+        let anim_data = AnimationData {
+            left: Anim::new(&anim_left, Duration::from_secs_f64(ANIM_SPEED)),
+            right: Anim::new(&anim_right, Duration::from_secs_f64(ANIM_SPEED)),
+            up: Anim::new(&anim_up, Duration::from_secs_f64(ANIM_SPEED)),
+            down: Anim::new(&anim_down, Duration::from_secs_f64(ANIM_SPEED)),
+        };
+
+        let geometrical_world: DefaultGeometricalWorld<f32> = DefaultGeometricalWorld::new();
+        let mechanical_world: DefaultMechanicalWorld<f32> =
+            DefaultMechanicalWorld::new(Vector2::new(0.0, 0.0));
+        let mut bodies = DefaultBodySet::new();
+        let mut colliders = DefaultColliderSet::new();
+        let joint_constraints: DefaultJointConstraintSet<f32> = DefaultJointConstraintSet::new();
+        let force_generators: DefaultForceGeneratorSet<f32> = DefaultForceGeneratorSet::new();
+        create_map_bounds(&map.layers[0], &mut colliders, &mut bodies);
         let layers = tiled_data.layers;
+
+        spawn(
+            &mut colliders,
+            &mut bodies,
+            &mut world,
+            (&(npc_map.len() - 1), &(player_map.len() - 1)),
+            &anim_data,
+            map,
+            context,
+        );
+        let physics_world = PhysicsWorld {
+            geometrical_world,
+            mechanical_world,
+            force_generators,
+            joint_constraints,
+            bodies: bodies,
+            colliders: colliders,
+        };
+
         MyGameState {
             sprite_map: tile_sprites,
             layers: layers,
             batch,
-            camera,
+            world,
+            player_map,
+            npc_map,
+            physics_world,
         }
     }
 
-    fn update(&mut self, key_buffer: &HashSet<glfw::Key>) {
-        let mut translate = Vector2::new(0.0, 0.0);
-        if key_buffer.contains(&glfw::Key::W) {
-            translate.y += 20.0;
-        }
-        if key_buffer.contains(&glfw::Key::A) {
-            translate.x += 20.0;
-        }
-        if key_buffer.contains(&glfw::Key::D) {
-            translate.x -= 20.0;
-        }
-        if key_buffer.contains(&glfw::Key::S) {
-            translate.y -= 20.0;
-        }
-        self.camera.translate(translate.x, translate.y);
+    fn update(&mut self, key_buffer: &HashSet<glfw::Key>, delta_time: Duration) {
+        let g_ctx = Graphics::new(key_buffer, delta_time);
+
+        // player_update(&mut self.physics_world.bodies, &mut self.world, &g_ctx);
+
+        // self.physics_world.mechanical_world.step(
+        //     &mut self.physics_world.geometrical_world,
+        //     &mut self.physics_world.bodies,
+        //     &mut self.physics_world.colliders,
+        //     &mut self.physics_world.joint_constraints,
+        //     &mut self.physics_world.force_generators,
+        // );
+        // for (_id, (camera, _player, draw)) in
+        //     &mut self.world.query::<(&mut Camera, &Player, &Draw)>()
+        // {
+        //     let handle = draw.player.as_ref().unwrap().handle;
+        //     let player_body = self.physics_world.bodies.rigid_body_mut(handle).unwrap();
+        //     player_body.set_linear_velocity(Vector2::new(0.0, 0.0));
+        //     camera.set_position(Vector2::new(player_body.position().translation.vector.x , player_body.position().translation.vector.y));
+        // }
     }
 
     fn draw<C>(&mut self, context: &mut C, delta_time: Duration, buffer: &Framebuffer<Dim2, (), ()>)
     where
         C: GraphicsContext,
     {
+        let mut camera_matrix: [f32; 16] = [0.0; 16];
+    
+        for (_id, camera_) in self.world.query::<&Camera>().iter().take(1) {
+            camera_matrix = camera_.as_matrix();
+            
+        }
+   
         let mut z: f32 = 50.0;
         for layer in &mut self.layers {
             draw_layer_new(&mut self.batch, layer.clone(), &self.sprite_map, &z);
             z -= 1.0;
+        }
+        let mut render_vec: Vec<_> = self
+            .world
+            .query::<&Draw>()
+            .iter() 
+            .map(|(_, d)| d.clone())
+            .collect();
+        render_vec.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+        for draw in render_vec {
+            if draw.draw_type == DrawType::Character {
+                draw.draw(
+                    (&self.player_map, &self.npc_map),
+                    &self.physics_world.bodies,
+                    &mut self.batch,
+                    z,
+                );
+            }
         }
 
         &mut self.batch.prepare(context);
@@ -525,17 +619,16 @@ impl Game for MyGameState {
             &buffer,
             &PipelineState::default(),
             |mut pipeline, mut shd_gate| {
-                &mut self
-                    .batch
-                    .draw(&mut pipeline, &mut shd_gate, self.camera.as_matrix());
+                &mut self.batch.draw(&mut pipeline, &mut shd_gate, camera_matrix);
             },
         );
     }
 
     fn process_event(&mut self, event: GameEvent) {
         if let GameEvent::WindowEvent(WindowEvent::FramebufferSize(width, height)) = event {
-            self.camera.set_size(width as u32 / 2, height as u32 / 2);
-         
+            for (_id, camera_) in &mut self.world.query::<&mut Camera>().iter().take(1) {
+                camera_.set_size(width as u32, height as u32 );
+            }
         }
     }
 }

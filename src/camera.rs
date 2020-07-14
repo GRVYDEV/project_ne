@@ -1,5 +1,7 @@
 use crate::graphics::orthographic_projection_matrix;
 use nalgebra::{Matrix4, Vector3, Vector2};
+
+#[derive(Clone)]
 pub struct Camera {
     position: Vector2<f32>,
     width: u32,
@@ -13,6 +15,9 @@ impl Camera {
             height: height as u32,
             position: Vector2::new(0.0, 0.0)
         }
+    }
+    pub fn get_position(&self) -> Vector2<f32>{
+        self.position
     }
     pub fn set_position(&mut self, pos: Vector2<f32>) {
         self.position = pos;
