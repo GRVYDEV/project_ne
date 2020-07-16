@@ -27,7 +27,7 @@ pub fn new_player<C>(
     C: GraphicsContext,
 {
     let mut camera = Camera::new(1600.0 , 900.0 );
-    camera.set_position(Vector2::new(pos.x / 2.0, pos.y / -2.0));
+    camera.set_position(Vector2::new(pos.x , pos.y ));
    
     let player_shape = ShapeHandle::new(Cuboid::new(Vector2::new(5.25, 5.0)));
 

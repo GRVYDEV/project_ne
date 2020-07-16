@@ -400,7 +400,7 @@ fn draw_layer_new(
 
             batch.queue_sprite(
                 &sprite.texture,
-                Vector3::new(x as f32 * 16.0, y as f32 * 16.0, *z_val),
+                Vector3::new(x as f32 * 16.0, (y as f32  + 16.0)* 16.0, *z_val),
                 sprite.rect.clone(),
                 rotation.to_radians(),
             );

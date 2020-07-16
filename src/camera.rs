@@ -31,7 +31,7 @@ impl Camera {
     }
     pub fn as_matrix(&self) -> [f32; 16] {
         let mut matrix = orthographic_projection_matrix(self.width, self.height);
-        let transform_matrix = Matrix4::new_translation(&Vector3::new(self.position.x, self.position.y, 0.0));
+        let transform_matrix = Matrix4::new_translation(&Vector3::new(self.position.x, self.position.y, 10.0));
 
         let mut final_matrix: [f32; 16] = [0.0; 16];
         final_matrix.copy_from_slice((matrix * transform_matrix).as_slice());
